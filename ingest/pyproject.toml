@@ -1,0 +1,9 @@
+[project]
+name = "rag-ingest"
+version = "0.1.0"
+description = "RAG at scale: corpus download, chunking, and batched embedding"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.uv]
+package = false
