@@ -1,0 +1,2 @@
+# Placeholder. Step 2 adds postgres and redis, then api and web.
+services: {}

@@ -1,1 +1,19 @@
 .DS_Store
+
+# Environment
+.env
+
+# Corpus, checkpoints, model cache
+data/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+.next/
