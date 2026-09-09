@@ -1,0 +1,5 @@
+[tool.uv.workspace]
+members = ["api", "ingest"]
+
+[tool.ruff]
+line-length = 100
