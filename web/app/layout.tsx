@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
+// CSS is processed by Next.js at build time and does not have a TypeScript module declaration.
+// @ts-expect-error -- side-effect CSS import handled by Next.js
 import "./globals.css";
 
 const geistSans = localFont({
