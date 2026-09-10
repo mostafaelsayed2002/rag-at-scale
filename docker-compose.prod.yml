@@ -1,0 +1,63 @@
+# Production stack. Pulls prebuilt images instead of building, and exposes
+# nothing but Caddy. Run with:
+#   docker compose -f docker-compose.prod.yml up -d
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-rag}
+      # No default: Compose refuses to start if this is missing, rather than
+      # running a public database with a guessable password.
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:-rag}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rag} -d ${POSTGRES_DB:-rag}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  api:
+    # TAG is a commit hash in a real deploy, which is what makes rollback
+    # a matter of changing one value and restarting.
+    image: ghcr.io/${OWNER:?set OWNER in .env}/rag-api:${TAG:-latest}
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rag}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    image: ghcr.io/${OWNER:?set OWNER in .env}/rag-web:${TAG:-latest}
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    # The only service reachable from outside.
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-http://localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. Lose this volume and Caddy re-requests them,
+      # which rate limits will eventually refuse.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:
