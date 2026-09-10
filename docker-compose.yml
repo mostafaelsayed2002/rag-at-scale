@@ -16,5 +16,33 @@ services:
       timeout: 5s
       retries: 10
 
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    environment:
+      # Host is the service name, not localhost: inside the network each
+      # service is reachable by name, and localhost means this container.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD:-rag}@postgres:5432/${POSTGRES_DB:-rag}
+    ports:
+      - "8000:8000"
+    depends_on:
+      # Waits for the healthcheck to pass, not just for the container to start.
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: web/Dockerfile
+      args:
+        # Baked into the bundle at build time. The browser makes this call
+        # from your machine, so it is the published port, not the service name.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
 volumes:
   pgdata:
