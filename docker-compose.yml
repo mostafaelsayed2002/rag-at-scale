@@ -44,5 +44,23 @@ services:
     depends_on:
       - api
 
+  # Development only. Never added to docker-compose.prod.yml: a database
+  # console on a public server is a liability, and the SSH tunnel covers it.
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@local.dev
+      PGADMIN_DEFAULT_PASSWORD: admin
+      # Single-user mode, so it does not ask for a master password every start.
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin:/var/lib/pgadmin
+    depends_on:
+      - postgres
+
 volumes:
   pgdata:
+  pgadmin:
