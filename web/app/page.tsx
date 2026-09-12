@@ -91,6 +91,10 @@ export default function Home() {
           <p className="mt-3 text-sm text-neutral-500">Nothing stored yet.</p>
         )}
       </section>
+
+      <footer className="mt-12 border-t border-neutral-200 pt-4 text-xs text-neutral-400">
+        Deployed automatically from main.
+      </footer>
     </main>
   );
 }
