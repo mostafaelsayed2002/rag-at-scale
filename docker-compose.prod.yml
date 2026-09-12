@@ -1,6 +1,10 @@
-# Production stack. Pulls prebuilt images instead of building, and exposes
-# nothing but Caddy. Run with:
+# Production stack. Pulls prebuilt images instead of building, and publishes
+# no ports: the server's existing nginx is the only thing facing the internet.
+#
+#   docker compose -f docker-compose.prod.yml pull
 #   docker compose -f docker-compose.prod.yml up -d
+#
+# Values come from a .env file sitting next to this one on the server.
 
 services:
   postgres:
@@ -8,7 +12,7 @@ services:
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-rag}
       # No default: Compose refuses to start if this is missing, rather than
-      # running a public database with a guessable password.
+      # running with a guessable password.
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-rag}
     volumes:
@@ -20,44 +24,48 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
+    networks:
+      # Internal only. The shared network already has a container answering to
+      # "postgres", and two containers with one name is a coin flip.
+      internal:
+        aliases:
+          - rag-postgres
 
   api:
     # TAG is a commit hash in a real deploy, which is what makes rollback
     # a matter of changing one value and restarting.
     image: ghcr.io/${OWNER:?set OWNER in .env}/rag-api:${TAG:-latest}
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rag}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@rag-postgres:5432/${POSTGRES_DB:-rag}
     depends_on:
       postgres:
         condition: service_healthy
     restart: unless-stopped
+    networks:
+      # Both: the database over the private network, nginx over the shared one.
+      internal:
+      edge:
+        aliases:
+          - rag-api
 
   web:
     image: ghcr.io/${OWNER:?set OWNER in .env}/rag-web:${TAG:-latest}
     depends_on:
       - api
     restart: unless-stopped
+    networks:
+      edge:
+        aliases:
+          - rag-web
 
-  caddy:
-    image: caddy:2-alpine
-    # The only service reachable from outside.
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      SITE_ADDRESS: ${SITE_ADDRESS:-http://localhost}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      # Certificates live here. Lose this volume and Caddy re-requests them,
-      # which rate limits will eventually refuse.
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      - api
-      - web
-    restart: unless-stopped
+networks:
+  # Created by this project, reachable only by its own containers.
+  internal:
+  # Created by the blog's compose project. "external" means use the existing
+  # one rather than making another.
+  edge:
+    external: true
+    name: blog_default
 
 volumes:
   pgdata:
-  caddy_data:
-  caddy_config:
