@@ -5,6 +5,8 @@ description = "RAG at scale: retrieval and answer generation API"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.141.1",
+    # Queries are embedded in-process with the same model the corpus used.
+    "fastembed>=0.4",
     "psycopg[binary,pool]>=3.3.5",
     "uvicorn[standard]>=0.52.4",
 ]
