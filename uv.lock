@@ -1223,6 +1223,7 @@ version = "0.1.0"
 source = { virtual = "api" }
 dependencies = [
     { name = "fastapi" },
+    { name = "fastembed" },
     { name = "psycopg", extra = ["binary", "pool"] },
     { name = "uvicorn", extra = ["standard"] },
 ]
@@ -1230,6 +1231,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1" },
+    { name = "fastembed", specifier = ">=0.4" },
     { name = "psycopg", extras = ["binary", "pool"], specifier = ">=3.3.5" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.52.4" },
 ]
