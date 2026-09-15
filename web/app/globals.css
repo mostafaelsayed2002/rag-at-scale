@@ -2,20 +2,141 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Colour tokens. Components use these through Tailwind names like bg-panel
+   and text-muted, so the dark theme is just a second set of values. */
 :root {
   color-scheme: light;
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: 250 250 249;
+  --panel: 244 244 242;
+  --elevated: 255 255 255;
+  --line: 228 228 225;
+  --fg: 28 28 30;
+  --muted: 104 104 110;
+  --subtle: 150 150 156;
+  --accent: 37 78 187;
+  --accent-soft: 232 238 252;
+  --accent-fg: 255 255 255;
+  --good: 22 128 88;
+  --warn: 180 110 20;
+  --bad: 196 50 60;
+  --highlight: 255 236 170;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: 22 22 24;
+    --panel: 28 28 31;
+    --elevated: 36 36 40;
+    --line: 52 52 58;
+    --fg: 236 236 238;
+    --muted: 160 160 168;
+    --subtle: 116 116 124;
+    --accent: 120 156 255;
+    --accent-soft: 36 44 72;
+    --accent-fg: 16 18 28;
+    --good: 74 196 140;
+    --warn: 230 170 70;
+    --bad: 240 110 116;
+    --highlight: 92 76 28;
+  }
+}
+
+html,
+body {
+  height: 100%;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
+  color: rgb(var(--fg));
+  background: rgb(var(--bg));
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--line)) transparent;
+  }
+}
+
+/* Answer typography. Kept here rather than in a plugin: it is small, and the
+   markdown renderer only produces a handful of element types. */
+.prose-answer {
+  line-height: 1.7;
+}
+.prose-answer p {
+  margin: 0 0 0.85em;
+}
+.prose-answer p:last-child {
+  margin-bottom: 0;
+}
+.prose-answer ul,
+.prose-answer ol {
+  margin: 0 0 0.85em;
+  padding-left: 1.3em;
+}
+.prose-answer ul {
+  list-style: disc;
+}
+.prose-answer ol {
+  list-style: decimal;
+}
+.prose-answer li {
+  margin: 0.25em 0;
+}
+.prose-answer strong {
+  font-weight: 600;
+}
+.prose-answer code {
+  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-size: 0.875em;
+  padding: 0.1em 0.35em;
+  border-radius: 0.3em;
+  background: rgb(var(--panel));
+}
+.prose-answer h3 {
+  font-weight: 600;
+  margin: 1.1em 0 0.4em;
+}
+
+/* Flash applied to a document passage when a citation opens it. */
+@keyframes cite-flash {
+  0% {
+    background: rgb(var(--highlight));
+  }
+  100% {
+    background: rgb(var(--highlight) / 0.35);
+  }
+}
+.cite-target {
+  animation: cite-flash 1.6s ease-out forwards;
+  border-radius: 0.375rem;
+}
+
+@keyframes caret-blink {
+  50% {
+    opacity: 0;
+  }
+}
+.streaming-caret::after {
+  content: "";
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  background: rgb(var(--accent));
+  animation: caret-blink 1s steps(1) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cite-target,
+  .streaming-caret::after {
+    animation: none;
   }
 }
