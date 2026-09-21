@@ -17,3 +17,9 @@ venv/
 # Node
 node_modules/
 .next/
+
+
+
+findings.md
+test.ipynb
+test.py
