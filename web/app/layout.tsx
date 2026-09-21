@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 
@@ -14,8 +14,15 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "RAG at Scale",
-  description: "Hybrid semantic search over a large corpus",
+  title: "RAG at Scale · EU AI & Data Regulation",
+  description: "Grounded answers about EU AI and data regulation, with citations to the exact passage.",
+};
+
+export const viewport: Viewport = {
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#fafaf9" },
+    { media: "(prefers-color-scheme: dark)", color: "#161618" },
+  ],
 };
 
 export default function RootLayout({
