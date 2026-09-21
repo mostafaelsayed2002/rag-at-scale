@@ -1,25 +1,24 @@
 /**
- * The contract between the frontend and the API. Everything is mocked today;
- * the backend should return exactly these shapes so the mocks can be removed
- * without touching a component.
+ * The contract between the frontend and the API.
+ *
+ * Documents, the PDFs behind them and search are live. Chat generation is
+ * still mocked: an answer is composed locally from real retrieved passages
+ * until POST /chat exists.
  */
 
 export type Role = "user" | "assistant";
 
-/** Where a retrieved passage lives, precise enough to open it at the right spot. */
+/** Where a retrieved passage lives, precise enough to open the PDF at it. */
 export type Citation = {
   /** 1-based marker used in the answer text, e.g. [1]. */
   index: number;
-  documentId: string;
-  chunkId: string;
-  /** Page for PDFs, null for markdown. */
-  page: number | null;
-  /** Anchor of the section inside the document, used to scroll and highlight. */
-  sectionId: string;
-  /** Human label for the location, e.g. "Article 33". */
-  locator: string;
-  snippet: string;
-  /** Retrieval score after reranking, 0 to 1. */
+  chunkId: number;
+  docId: string;
+  docTitle: string | null;
+  page: number;
+  /** The passage itself. The viewer highlights this text on the page. */
+  quote: string;
+  /** Similarity, 1 is identical and 0 unrelated. */
   score: number;
 };
 
@@ -49,31 +48,34 @@ export type Conversation = {
   messages: Message[];
 };
 
-export type DocumentFormat = "pdf" | "md";
-
-export type DocumentMeta = {
-  id: string;
-  title: string;
-  shortTitle: string;
-  format: DocumentFormat;
-  /** Corpus tier, e.g. "Legislation" or "EDPB". */
-  collection: string;
-  identifier: string;
-  publishedAt: string;
-  pageCount: number | null;
-  chunkCount: number;
-  sourceUrl: string;
+/** GET /documents */
+export type DocumentSummary = {
+  doc_id: string;
+  title: string | null;
+  collection: string | null;
+  document_type: string | null;
+  source_url: string | null;
+  page_count: number | null;
+  chunk_count: number | null;
 };
 
-export type DocumentSection = {
-  id: string;
-  heading: string;
-  page: number | null;
-  paragraphs: string[];
+/** GET /documents/{id} */
+export type DocumentDetail = DocumentSummary & {
+  source_organization: string | null;
+  celex_number: string | null;
+  publication_date: string | null;
+  has_file: boolean;
 };
 
-export type DocumentContent = DocumentMeta & {
-  sections: DocumentSection[];
+/** GET /search */
+export type SearchHit = {
+  chunk_id: number;
+  doc_id: string;
+  title: string | null;
+  text: string;
+  page_start: number;
+  page_end: number;
+  score: number;
 };
 
 /** Events emitted while an answer is generated. */

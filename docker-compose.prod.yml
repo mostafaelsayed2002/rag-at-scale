@@ -37,6 +37,13 @@ services:
     image: ghcr.io/${OWNER:?set OWNER in .env}/rag-api:${TAG:-latest}
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@rag-postgres:5432/${POSTGRES_DB:-rag}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:?set GOOGLE_API_KEY in .env}
+      DATA_DIR: /app/data
+    volumes:
+      # The corpus PDFs, copied to the server with rsync rather than baked into
+      # the image: data/ is not in git, so CI cannot put them there, and an
+      # 80 MB corpus in every image would slow each deploy.
+      - ./data:/app/data:ro
     depends_on:
       postgres:
         condition: service_healthy

@@ -4,11 +4,11 @@ version = "0.1.0"
 description = "RAG at scale: retrieval and answer generation API"
 requires-python = ">=3.11"
 dependencies = [
-    "datetime>=6.0",
     "fastapi>=0.141.1",
     # Queries are embedded in-process with the same model the corpus used.
-    "fastembed>=0.4",
+    "langchain-google-genai>=4.4.0",
     "langsmith>=0.12.5",
+    "numpy>=2.4.6",
     "psycopg[binary,pool]>=3.3.5",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",

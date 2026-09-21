@@ -1,15 +1,15 @@
-import { MOCK_DOCUMENTS } from "./mock/documents";
-import { mockChatStream } from "./mock/chat";
+import { pickScript } from "./mock/chat";
 import { MOCK_METRICS } from "./mock/metrics";
-import type { ChatEvent, DocumentContent, DocumentMeta, Message, SystemMetrics } from "./types";
+import type {
+  ChatEvent,
+  DocumentDetail,
+  DocumentSummary,
+  Message,
+  SearchHit,
+  SystemMetrics,
+} from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-
-/**
- * Mocks are on unless explicitly disabled. Set NEXT_PUBLIC_USE_MOCKS=false at
- * build time once the backend implements the endpoints below.
- */
-export const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS !== "false";
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -20,73 +20,67 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 /** GET /documents */
-export async function listDocuments(): Promise<DocumentMeta[]> {
-  if (USE_MOCKS) {
-    await delay(150);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    return MOCK_DOCUMENTS.map(({ sections, ...meta }) => meta);
-  }
+export function listDocuments(): Promise<DocumentSummary[]> {
   return getJson("/documents");
 }
 
-/** GET /documents/:id */
-export async function getDocument(id: string): Promise<DocumentContent> {
-  if (USE_MOCKS) {
-    await delay(120);
-    const doc = MOCK_DOCUMENTS.find((d) => d.id === id);
-    if (!doc) throw new Error(`Document ${id} not found`);
-    return doc;
-  }
-  return getJson(`/documents/${encodeURIComponent(id)}`);
+/** GET /documents/{id} */
+export function getDocument(docId: string): Promise<DocumentDetail> {
+  return getJson(`/documents/${encodeURIComponent(docId)}`);
 }
 
-/** GET /metrics */
-export async function getMetrics(): Promise<SystemMetrics> {
-  if (USE_MOCKS) {
-    await delay(200);
-    return MOCK_METRICS;
-  }
-  return getJson("/metrics");
+/** The PDF itself. Given straight to the viewer, which fetches it by range. */
+export function documentFileUrl(docId: string): string {
+  return `${API_URL}/documents/${encodeURIComponent(docId)}/file`;
+}
+
+/** GET /search */
+export function search(q: string, k = 8): Promise<SearchHit[]> {
+  const params = new URLSearchParams({ q, k: String(k) });
+  return getJson(`/search?${params}`);
 }
 
 /**
- * POST /chat, answered as server-sent events. Each event's data line is one
- * JSON-encoded ChatEvent.
+ * Stands in for POST /chat.
+ *
+ * Answers are scripted, but their citations come from chunks that are really
+ * in the database, so clicking one opens the actual PDF at the actual page
+ * and highlights the passage. No embedding call is made, which keeps the
+ * demo working when the API quota is spent.
  */
 export async function* streamChat(
   query: string,
-  history: Pick<Message, "role" | "content">[],
+  _history: Pick<Message, "role" | "content">[],
   signal?: AbortSignal,
 ): AsyncGenerator<ChatEvent> {
-  if (USE_MOCKS) {
-    yield* mockChatStream(query, signal);
-    return;
+  const started = performance.now();
+  const script = pickScript(query);
+
+  // Retrieval would happen before generation, so the citations arrive first.
+  await delay(500);
+  if (signal?.aborted) return;
+  if (script.citations.length) yield { type: "citations", citations: script.citations };
+
+  for (const piece of script.answer.match(/\S+\s*/g) ?? []) {
+    if (signal?.aborted) return;
+    await delay(14 + Math.random() * 22);
+    yield { type: "token", text: piece };
   }
 
-  const res = await fetch(`${API_URL}/chat`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ query, history }),
-    signal,
-  });
-  if (!res.ok || !res.body) throw new Error(`Chat failed with ${res.status}`);
+  yield {
+    type: "done",
+    metrics: {
+      latencyMs: Math.round(performance.now() - started),
+      promptTokens: 0,
+      completionTokens: 0,
+      cacheHit: "none",
+      retrievedChunks: script.citations.length,
+    },
+  };
+}
 
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  for (;;) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const frames = buffer.split("\n\n");
-    buffer = frames.pop() ?? "";
-    for (const frame of frames) {
-      const data = frame
-        .split("\n")
-        .filter((line) => line.startsWith("data:"))
-        .map((line) => line.slice(5).trim())
-        .join("");
-      if (data) yield JSON.parse(data) as ChatEvent;
-    }
-  }
+/** GET /metrics, still mocked. */
+export async function getMetrics(): Promise<SystemMetrics> {
+  await delay(200);
+  return MOCK_METRICS;
 }

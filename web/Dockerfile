@@ -66,6 +66,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 # separately. Skip this line and the page loads unstyled.
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
+# Standalone mode leaves public/ out too. It holds the PDF.js worker, which
+# the build script copies in, and without it the viewer never renders a page.
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
+
 # Everything from here runs unprivileged.
 USER nextjs
 
