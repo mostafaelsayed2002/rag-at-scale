@@ -7,6 +7,7 @@ rate-limits or briefly fails.
 
 import logging
 import random
+import re
 import time
 from collections.abc import Iterable, Iterator, Sequence
 from functools import lru_cache
@@ -20,8 +21,32 @@ from models import Chunk
 
 logger = logging.getLogger(__name__)
 
-MAX_ATTEMPTS = 5
+MAX_ATTEMPTS = 8
 TOO_MANY_REQUESTS = 429
+
+# Google's free tier allows 100 embedding requests per minute. Staying just
+# under that is far faster than being cut off and waiting out the penalty.
+REQUESTS_PER_MINUTE = 90
+_next_call_allowed = 0.0
+
+
+def _throttle() -> None:
+    """Space requests out so the quota is approached but not exceeded."""
+    global _next_call_allowed
+    wait = _next_call_allowed - time.monotonic()
+    if wait > 0:
+        time.sleep(wait)
+    _next_call_allowed = time.monotonic() + 60 / REQUESTS_PER_MINUTE
+
+
+def _client_error(exc: BaseException) -> ClientError | None:
+    """Find the underlying API error; LangChain wraps it in its own type."""
+    seen = exc
+    while seen is not None:
+        if isinstance(seen, ClientError):
+            return seen
+        seen = seen.__cause__
+    return None
 
 
 def _is_permanent(exc: Exception) -> bool:
@@ -31,7 +56,17 @@ def _is_permanent(exc: Exception) -> bool:
     model, a malformed request. Those should fail at once. The exception is
     429, a rate limit, which is exactly what backing off is for.
     """
-    return isinstance(exc, ClientError) and getattr(exc, "code", None) != TOO_MANY_REQUESTS
+    error = _client_error(exc)
+    return error is not None and getattr(error, "code", None) != TOO_MANY_REQUESTS
+
+
+def _retry_after(exc: Exception) -> float | None:
+    """The wait Google asks for, in seconds, when it reports a rate limit.
+
+    Its own number beats guessing: it knows when the quota window resets.
+    """
+    match = re.search(r"[Pp]lease retry in ([\d.]+)s", str(exc))
+    return float(match.group(1)) if match else None
 
 
 @lru_cache(maxsize=1)
@@ -56,13 +91,17 @@ def _with_retries(call, what: str):
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
+            _throttle()
             return call()
         except Exception as exc:
             if attempt == MAX_ATTEMPTS or _is_permanent(exc):
                 raise
-            # Random jitter, so parallel workers don't all retry in step.
-            wait = min(2**attempt, 30) + random.random()
-            logger.warning("%s failed (%s), retrying in %.1fs", what, exc, wait)
+            # Google says how long its quota window has left; otherwise back
+            # off exponentially. Jitter keeps parallel workers out of step.
+            wait = _retry_after(exc) or min(2**attempt, 30)
+            wait += random.random()
+            logger.warning("%s rate-limited or failed, retrying in %.0fs", what, wait)
+            logger.debug("cause: %s", exc)
             time.sleep(wait)
     raise AssertionError("unreachable")
 

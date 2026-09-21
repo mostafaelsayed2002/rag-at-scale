@@ -87,6 +87,9 @@ def main() -> int:
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-7s %(message)s")
+    # One line per HTTP call to Google buries the progress messages.
+    for noisy in ("httpx", "google_genai", "google.genai"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
 
     metadata = load_metadata()
     started = time.perf_counter()

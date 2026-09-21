@@ -129,10 +129,19 @@ def store_document(
     doc: DocumentInfo,
     pairs: Iterable[tuple[Chunk, np.ndarray]],
 ) -> int:
-    """Store one document and its chunks in a single transaction."""
+    """Store one document and its chunks in a single transaction.
+
+    The document row goes first: chunks reference it, so inserting them before
+    it exists fails the foreign key. The chunk count is filled in afterwards,
+    once the chunks are actually written.
+    """
     with conn.transaction():
+        upsert_document(conn, doc, chunk_count=0)
         written = replace_chunks(conn, doc.doc_id, pairs)
-        upsert_document(conn, doc, written)
+        conn.execute(
+            "UPDATE documents SET chunk_count = %s WHERE doc_id = %s",
+            (written, doc.doc_id),
+        )
     logger.info("stored %s: %d chunks", doc.doc_id, written)
     return written
 
