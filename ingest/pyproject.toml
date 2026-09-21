@@ -8,6 +8,15 @@ dependencies = [
     # ONNX runtime rather than PyTorch: same model, a few hundred MB not two GB.
     "fastembed>=0.4",
     "psycopg[binary]>=3.2",
+    "pypdf>=6.18.1",
+    "fonttools>=4.65.0",
+    "pymupdf>=1.28.2",
+    "langchain-text-splitters>=1.1.2",
+    "tokenizers>=0.23.2",
+    "numpy>=2.4.6",
+    "langchain-google-genai>=4.4.0",
+    "python-dotenv>=1.2.3",
+    "pydantic-settings>=2.15.0",
 ]
 
 [tool.uv]

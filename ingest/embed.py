@@ -14,7 +14,7 @@ from functools import lru_cache
 from itertools import islice
 
 import numpy as np
-from config import EMBED_BATCH, EMBEDDING_DIM, EMBEDDING_MODEL, GOOGLE_API_KEY
+from config import settings
 from google.genai.errors import ClientError
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from models import Chunk
@@ -24,19 +24,40 @@ logger = logging.getLogger(__name__)
 MAX_ATTEMPTS = 8
 TOO_MANY_REQUESTS = 429
 
-# Google's free tier allows 100 embedding requests per minute. Staying just
-# under that is far faster than being cut off and waiting out the penalty.
-REQUESTS_PER_MINUTE = 90
-_next_call_allowed = 0.0
+# The free tier's quota counts texts, not calls: one request carrying 97
+# chunks consumed nearly the whole allowance of 100 per minute. So the budget
+# below is in texts, and a sliding one-minute window spends it.
+TEXTS_PER_MINUTE = settings.embed_texts_per_minute
+
+# A batch larger than the per-minute budget can never succeed, so cap it.
+BATCH = min(settings.embed_batch, TEXTS_PER_MINUTE)
+_window_started = 0.0
+_window_spent = 0
 
 
-def _throttle() -> None:
-    """Space requests out so the quota is approached but not exceeded."""
-    global _next_call_allowed
-    wait = _next_call_allowed - time.monotonic()
-    if wait > 0:
-        time.sleep(wait)
-    _next_call_allowed = time.monotonic() + 60 / REQUESTS_PER_MINUTE
+def _throttle(count: int) -> None:
+    """Wait if sending `count` more texts would exceed this minute's budget."""
+    global _window_started, _window_spent
+
+    now = time.monotonic()
+    if now - _window_started >= 60:
+        _window_started, _window_spent = now, 0
+
+    # Nothing spent yet and the batch alone exceeds the budget: waiting cannot
+    # help, so send it and let the retry handle a refusal. BATCH keeps this
+    # from happening in practice.
+    if _window_spent == 0 and count > TEXTS_PER_MINUTE:
+        _window_spent += count
+        return
+
+    if _window_spent + count > TEXTS_PER_MINUTE:
+        wait = 60 - (now - _window_started)
+        if wait > 0:
+            logger.info("quota budget reached, waiting %.0fs", wait)
+            time.sleep(wait)
+        _window_started, _window_spent = time.monotonic(), 0
+
+    _window_spent += count
 
 
 def _client_error(exc: BaseException) -> ClientError | None:
@@ -72,15 +93,15 @@ def _retry_after(exc: Exception) -> float | None:
 @lru_cache(maxsize=1)
 def _embedder() -> GoogleGenerativeAIEmbeddings:
     """Built on first use, once per process, so importing stays cheap."""
-    if not GOOGLE_API_KEY:
+    if not settings.google_api_key:
         raise RuntimeError("Set GOOGLE_API_KEY in .env to embed with Gemini")
     return GoogleGenerativeAIEmbeddings(
-        model=EMBEDDING_MODEL,
-        output_dimensionality=EMBEDDING_DIM,
+        model=settings.embedding_model,
+        output_dimensionality=settings.embedding_dim,
     )
 
 
-def _with_retries(call, what: str):
+def _with_retries(call, what: str, count: int = 1):
     """Retry on rate limits and transient failures, backing off each time.
 
     Embedding a corpus is thousands of calls, so a single 429 or dropped
@@ -91,7 +112,7 @@ def _with_retries(call, what: str):
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            _throttle()
+            _throttle(count)
             return call()
         except Exception as exc:
             if attempt == MAX_ATTEMPTS or _is_permanent(exc):
@@ -118,17 +139,18 @@ def _normalise(vectors: np.ndarray) -> np.ndarray:
 
 
 def embed_texts(texts: Sequence[str]) -> np.ndarray:
-    """Embed passages. Returns float32 of shape (len(texts), EMBEDDING_DIM)."""
+    """Embed passages. Returns float32 of shape (len(texts), settings.embedding_dim)."""
     if not texts:
-        return np.empty((0, EMBEDDING_DIM), dtype=np.float32)
+        return np.empty((0, settings.embedding_dim), dtype=np.float32)
 
     vectors = _with_retries(
-        lambda: _embedder().embed_documents(list(texts), batch_size=EMBED_BATCH),
+        lambda: _embedder().embed_documents(list(texts), batch_size=BATCH),
         f"embedding {len(texts)} texts",
+        count=len(texts),
     )
     array = np.asarray(vectors, dtype=np.float32)
-    if array.shape != (len(texts), EMBEDDING_DIM):
-        raise ValueError(f"expected {len(texts)}x{EMBEDDING_DIM} vectors, got {array.shape}")
+    if array.shape != (len(texts), settings.embedding_dim):
+        raise ValueError(f"expected {len(texts)}x{settings.embedding_dim} vectors, got {array.shape}")
     return _normalise(array)
 
 
@@ -139,7 +161,7 @@ def embed_query(text: str) -> np.ndarray:
 
 
 def embed_chunks(
-    chunks: Iterable[Chunk], batch_size: int = EMBED_BATCH
+    chunks: Iterable[Chunk], batch_size: int = BATCH
 ) -> Iterator[tuple[Chunk, np.ndarray]]:
     """Pair each chunk with its vector, one batch in memory at a time."""
     iterator = iter(chunks)

@@ -10,7 +10,7 @@ from itertools import islice
 
 import numpy as np
 import psycopg
-from config import DATABASE_URL, EMBEDDING_DIM
+from config import settings
 from models import Chunk, DocumentInfo
 
 logger = logging.getLogger(__name__)
@@ -21,14 +21,22 @@ COPY_BATCH = 500
 
 
 def connect() -> psycopg.Connection:
-    return psycopg.connect(DATABASE_URL)
+    """Connect in autocommit mode.
+
+    Without it, psycopg holds one transaction open for the whole session and
+    the `conn.transaction()` blocks below become savepoints inside it, so
+    nothing is durable until the program exits: an interrupted run loses
+    every document. With autocommit, each of those blocks is a real
+    transaction that commits as soon as its document is stored.
+    """
+    return psycopg.connect(settings.database_url, autocommit=True)
 
 
 def vector_literal(vector: np.ndarray) -> str:
     """pgvector's text form: [0.1,-0.2,...]. Six decimals is far more than
     float32 carries, so nothing is lost and rows stay compact."""
-    if vector.shape != (EMBEDDING_DIM,):
-        raise ValueError(f"expected a {EMBEDDING_DIM}-dimension vector, got {vector.shape}")
+    if vector.shape != (settings.embedding_dim,):
+        raise ValueError(f"expected a {settings.embedding_dim}-dimension vector, got {vector.shape}")
     return "[" + ",".join(f"{value:.6f}" for value in vector) + "]"
 
 
