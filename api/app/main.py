@@ -147,7 +147,19 @@ async def search(
     if app.state.embedder is None:
         raise HTTPException(status_code=503, detail="Search needs GOOGLE_API_KEY")
 
-    vector = embed_query(app.state.embedder, q)
+    try:
+        vector = embed_query(app.state.embedder, q)
+    except Exception as exc:
+        # The query has to be embedded before anything can be searched, so an
+        # exhausted quota is reported as such rather than as a server fault.
+        message = str(exc)
+        if "RESOURCE_EXHAUSTED" in message or "429" in message:
+            logger.warning("embedding quota exhausted: %s", message)
+            raise HTTPException(
+                status_code=429,
+                detail="The embedding quota is used up, so search is unavailable right now.",
+            ) from exc
+        raise
 
     async with pool.connection() as conn:
         cur = await conn.execute(
