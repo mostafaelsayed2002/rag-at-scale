@@ -3,13 +3,15 @@
 import { ArrowUpRight } from "lucide-react";
 import { DemoBadge } from "../ui";
 
+// Matched to the scripted answers and the ingested documents: a question
+// about something not in the corpus has nothing to cite.
 const EXAMPLES = [
-  { title: "Breach notification", question: "How quickly must we report a data breach?" },
-  { title: "High-risk AI", question: "Is our CV screening tool regulated under the AI Act?" },
-  { title: "Right to erasure", question: "A customer wants all their data deleted. Do we have to?" },
-  { title: "Prohibited practices", question: "Which AI practices are prohibited in the EU?" },
-  { title: "NIS2 reporting", question: "What are the NIS2 incident reporting deadlines?" },
-  { title: "Fines", question: "What is the maximum fine under the GDPR and the AI Act?" },
+  { title: "Marking", question: "How should providers mark AI-generated content?" },
+  { title: "Copyright", question: "What are the copyright obligations for model providers?" },
+  { title: "Systemic risk", question: "What applies to models with systemic risk?" },
+  { title: "AI system", question: "What is the definition of an AI system?" },
+  { title: "Training data", question: "Do we need a public summary of training data?" },
+  { title: "Watermarks", question: "Can tools that strip watermarks be distributed?" },
 ];
 
 export function EmptyState({ onPick }: { onPick: (question: string) => void }) {
@@ -24,8 +26,8 @@ export function EmptyState({ onPick }: { onPick: (question: string) => void }) {
         Ask anything about EU AI and data regulation
       </h1>
       <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-muted">
-        Answers are grounded in the AI Act, GDPR, Data Act, NIS2 and guidance from the EDPB, the AI Office and ENISA.
-        Every claim links to the passage it came from.
+        Answers are grounded in the AI Office guidance and codes of practice ingested so far. Every claim
+        links to the passage it came from, opened in the original PDF at the right page.
       </p>
 
       <div className="mt-8 grid gap-2 sm:grid-cols-2">

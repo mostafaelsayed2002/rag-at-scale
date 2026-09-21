@@ -46,7 +46,12 @@ export function ChatApp() {
 
   const openCitation = useCallback(
     (citation: Citation) => {
-      setDocTarget({ documentId: citation.documentId, sectionId: citation.sectionId, nonce: Date.now() });
+      setDocTarget({
+        docId: citation.docId,
+        page: citation.page,
+        quote: citation.quote,
+        nonce: Date.now(),
+      });
       setRightOpen(true);
       if (!isDesktop) setLeftOpen(false);
     },

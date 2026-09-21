@@ -140,3 +140,10 @@ body {
     animation: none;
   }
 }
+
+/* Highlight drawn over the cited passage in the PDF text layer. */
+.cite-mark {
+  background: rgb(var(--highlight) / 0.85);
+  color: transparent;
+  border-radius: 2px;
+}

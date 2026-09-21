@@ -3,17 +3,15 @@
 import { useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { AlertTriangle, Check, Clock, Copy, Database, FileCode, FileText, Hash, Zap } from "lucide-react";
-import { MOCK_DOCUMENTS } from "@/lib/mock/documents";
+import { AlertTriangle, Check, Clock, Copy, Database, FileText, Hash, Zap } from "lucide-react";
 import { formatMs } from "@/lib/format";
 import type { Citation, Message as MessageType } from "@/lib/types";
 import { IconButton } from "../ui";
 
 export type OpenCitation = (citation: Citation) => void;
 
-// Titles for citation cards. Taken from the mock corpus today; the backend
-// should include a document title on each citation instead.
-const DOC_TITLES = new Map(MOCK_DOCUMENTS.map((d) => [d.id, { title: d.shortTitle, format: d.format }]));
+/** Falls back to the id when a document has no title in the corpus metadata. */
+const label = (citation: Citation) => citation.docTitle ?? citation.docId;
 
 export function UserMessage({ message }: { message: MessageType }) {
   return (
@@ -128,13 +126,12 @@ function AnswerBody({
 }
 
 function CitationMarker({ citation, onOpen }: { citation: Citation; onOpen: OpenCitation }) {
-  const doc = DOC_TITLES.get(citation.documentId);
   return (
     <span className="group relative inline-block align-baseline">
       <button
         type="button"
         onClick={() => onOpen(citation)}
-        aria-label={`Source ${citation.index}: ${doc?.title ?? citation.documentId}, ${citation.locator}`}
+        aria-label={`Source ${citation.index}: ${label(citation)}, page ${citation.page}`}
         className="relative mx-0.5 inline-flex h-[18px] min-w-[18px] -translate-y-px items-center justify-center rounded-md bg-accent-soft px-1 text-[11px] font-semibold leading-none text-accent transition-colors before:absolute before:-inset-1.5 before:content-[''] hover:bg-accent hover:text-accent-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60"
       >
         {citation.index}
@@ -144,10 +141,10 @@ function CitationMarker({ citation, onOpen }: { citation: Citation; onOpen: Open
         className="pointer-events-none invisible absolute bottom-full left-1/2 z-30 mb-2 w-72 -translate-x-1/2 rounded-lg border border-line bg-elevated p-3 text-left opacity-0 shadow-lg transition-opacity group-focus-within:visible group-focus-within:opacity-100 group-hover:visible group-hover:opacity-100"
       >
         <span className="block text-xs font-semibold text-fg">
-          {doc?.title} · {citation.locator}
-          {citation.page != null && <span className="font-normal text-muted"> · p. {citation.page}</span>}
+          {label(citation)}
+          <span className="font-normal text-muted"> · page {citation.page}</span>
         </span>
-        <span className="mt-1 line-clamp-3 block text-xs font-normal leading-relaxed text-muted">{citation.snippet}</span>
+        <span className="mt-1 line-clamp-3 block text-xs font-normal leading-relaxed text-muted">{citation.quote}</span>
       </span>
     </span>
   );
@@ -159,8 +156,7 @@ function SourceList({ citations, onOpenCitation }: { citations: Citation[]; onOp
       <h3 className="mb-2 text-[11px] font-medium uppercase tracking-wide text-subtle">Sources</h3>
       <ol className="grid gap-2 sm:grid-cols-2">
         {citations.map((c) => {
-          const doc = DOC_TITLES.get(c.documentId);
-          const Icon = doc?.format === "md" ? FileCode : FileText;
+
           return (
             <li key={c.index}>
               <button
@@ -173,12 +169,11 @@ function SourceList({ citations, onOpenCitation }: { citations: Citation[]; onOp
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5 text-sm font-medium">
-                    <Icon size={13} className="shrink-0 text-subtle" aria-hidden />
-                    <span className="truncate">{doc?.title ?? c.documentId}</span>
+                    <FileText size={13} className="shrink-0 text-subtle" aria-hidden />
+                    <span className="truncate">{label(c)}</span>
                   </span>
                   <span className="mt-0.5 block truncate text-xs text-muted">
-                    {c.locator}
-                    {c.page != null && ` · page ${c.page}`}
+                    page {c.page}
                   </span>
                 </span>
                 <span className="shrink-0 pt-0.5 font-mono text-[11px] tabular-nums text-subtle" title="Rerank score">
