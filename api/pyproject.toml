@@ -12,6 +12,9 @@ dependencies = [
     "psycopg[binary,pool]>=3.3.5",
     "pydantic>=2.13.5",
     "pydantic-settings>=2.15.0",
+    # Shared response and embedding cache. The client speaks asyncio natively,
+    # which the endpoints need.
+    "redis>=5.2.1",
     "uvicorn[standard]>=0.52.4",
 ]
 
