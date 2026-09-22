@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from .cache import build_cache
 from .config import settings
 from .db import pool
 from .embeddings import build_embedder, embed_query
@@ -65,8 +66,11 @@ async def lifespan(app: FastAPI):
     await pool.open()
     app.state.pdfs = index_pdfs(settings.data_dir)
     app.state.embedder = build_embedder() if settings.google_api_key else None
+    app.state.cache = build_cache()
     yield
     await pool.close()
+    if app.state.cache.client is not None:
+        await app.state.cache.client.aclose()
 
 
 app = FastAPI(title="RAG at Scale", lifespan=lifespan)
@@ -147,8 +151,18 @@ async def search(
     if app.state.embedder is None:
         raise HTTPException(status_code=503, detail="Search needs GOOGLE_API_KEY")
 
+    # Embedding the query is a paid network call, and the same question asked
+    # twice produces the same vector. The cache key is the model as well as
+    # the text: vectors from two models are not comparable.
+    fingerprint = f"{settings.embedding_model}:{settings.embedding_dim}:{q}"
+    vector = await app.state.cache.get("embed", fingerprint)
+    if vector is not None:
+        logger.debug("query embedding served from cache")
+
     try:
-        vector = embed_query(app.state.embedder, q)
+        if vector is None:
+            vector = embed_query(app.state.embedder, q)
+            await app.state.cache.set("embed", fingerprint, vector)
     except Exception as exc:
         # The query has to be embedded before anything can be searched, so an
         # exhausted quota is reported as such rather than as a server fault.
