@@ -4,7 +4,7 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -13,6 +13,8 @@ from .cache import build_cache
 from .config import settings
 from .db import pool
 from .embeddings import build_embedder, embed_query
+from .models import MatricsResponse
+from .monitoring import Metrics, MetricsMiddleware, setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -63,10 +65,17 @@ def index_pdfs(data_dir: Path) -> dict[str, Path]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging(settings.log_level, as_json=settings.is_production)
     await pool.open()
+    # The middleware reaches the database through this, so it does not have to
+    # import the pool itself.
+    app.state.pool = pool
     app.state.pdfs = index_pdfs(settings.data_dir)
     app.state.embedder = build_embedder() if settings.google_api_key else None
     app.state.cache = build_cache()
+    # Shares the cache's connection: one client is enough, and a second pool
+    # to the same Redis would buy nothing.
+    app.state.metrics = Metrics(app.state.cache.client)
     yield
     await pool.close()
     if app.state.cache.client is not None:
@@ -74,6 +83,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="RAG at Scale", lifespan=lifespan)
+
+# The last middleware added is the outermost, so CORS below wraps this one.
+# That is the order we want: CORS headers are attached even to responses this
+# one counted as errors, and browser preflights are answered without being
+# measured as traffic.
+app.add_middleware(MetricsMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -86,6 +101,12 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/metrics", response_model=MatricsResponse)
+async def metrics():
+    """Live counters, shared by every worker through Redis."""
+    return await app.state.metrics.summary()
 
 
 @app.get("/documents", response_model=list[DocumentSummary])
@@ -144,6 +165,7 @@ async def get_document_file(doc_id: str):
 
 @app.get("/search", response_model=list[SearchHit])
 async def search(
+    request: Request,
     q: str = Query(min_length=1, description="what to search for"),
     k: int = Query(default=10, ge=1, le=50, description="how many results"),
     collection: str | None = Query(default=None, description="restrict to one collection"),
@@ -156,8 +178,9 @@ async def search(
     # the text: vectors from two models are not comparable.
     fingerprint = f"{settings.embedding_model}:{settings.embedding_dim}:{q}"
     vector = await app.state.cache.get("embed", fingerprint)
-    if vector is not None:
-        logger.debug("query embedding served from cache")
+    # Left for the metrics middleware, which runs after this and cannot know
+    # what happened inside the endpoint.
+    request.state.cache_hit = vector is not None
 
     try:
         if vector is None:
