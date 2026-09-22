@@ -57,6 +57,9 @@ class Answer(BaseModel):
     citations: list[Citation]
     tokens_input: int
     tokens_output: int
+    # Passages put in front of the model, which is more than the number cited:
+    # the difference is how much of the retrieval the answer actually used.
+    retrieved: int = 0
 
 
 def build_llm() -> ChatGoogleGenerativeAI:
@@ -184,4 +187,5 @@ async def answer_question(llm: ChatGoogleGenerativeAI, query: str, chunks: list[
         citations=collect_citations(text, chunks),
         tokens_input=tokens_input,
         tokens_output=tokens_output,
+        retrieved=len(chunks),
     )

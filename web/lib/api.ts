@@ -1,21 +1,29 @@
-import { pickScript } from "./mock/chat";
-import { MOCK_METRICS } from "./mock/metrics";
 import type {
+  Analytics,
+  ChatApiResponse,
   ChatEvent,
+  Citation,
   DocumentDetail,
   DocumentSummary,
   Message,
   SearchHit,
-  SystemMetrics,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** The API's own message when it sends one, which is friendlier than a status code. */
+async function detail(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json();
+    return typeof body?.detail === "string" ? body.detail : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 async function getJson<T>(path: string): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, { cache: "no-store" });
-  if (!res.ok) throw new Error(`${path} failed with ${res.status}`);
+  if (!res.ok) throw new Error(await detail(res, `${path} failed with ${res.status}`));
   return res.json();
 }
 
@@ -40,13 +48,26 @@ export function search(q: string, k = 8): Promise<SearchHit[]> {
   return getJson(`/search?${params}`);
 }
 
+/** The API's citation shape, mapped to the one the viewer works in. */
+function toCitation(c: ChatApiResponse["citations"][number]): Citation {
+  return {
+    index: c.n,
+    chunkId: c.chunk_id,
+    docId: c.doc_id,
+    docTitle: c.title,
+    // A passage can span a page break; the viewer opens where it starts.
+    page: c.page_start,
+    quote: c.quote,
+    score: c.score,
+  };
+}
+
 /**
- * Stands in for POST /chat.
+ * POST /chat.
  *
- * Answers are scripted, but their citations come from chunks that are really
- * in the database, so clicking one opens the actual PDF at the actual page
- * and highlights the passage. No embedding call is made, which keeps the
- * demo working when the API quota is spent.
+ * The answer arrives whole rather than token by token, so this yields it in
+ * one piece. The generator shape is kept because the caller is written around
+ * it, and because streaming is the next step rather than a rewrite.
  */
 export async function* streamChat(
   query: string,
@@ -54,33 +75,47 @@ export async function* streamChat(
   signal?: AbortSignal,
 ): AsyncGenerator<ChatEvent> {
   const started = performance.now();
-  const script = pickScript(query);
 
-  // Retrieval would happen before generation, so the citations arrive first.
-  await delay(500);
-  if (signal?.aborted) return;
-  if (script.citations.length) yield { type: "citations", citations: script.citations };
+  const res = await fetch(`${API_URL}/chat`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query }),
+    signal,
+  });
 
-  for (const piece of script.answer.match(/\S+\s*/g) ?? []) {
-    if (signal?.aborted) return;
-    await delay(14 + Math.random() * 22);
-    yield { type: "token", text: piece };
+  if (!res.ok) {
+    // 429 is the quota running out, which is ordinary here and worth saying
+    // plainly rather than reporting as a failure of the app.
+    yield {
+      type: "error",
+      message: await detail(res, "The answer could not be generated. Please try again."),
+    };
+    return;
   }
 
+  const body: ChatApiResponse = await res.json();
+  if (signal?.aborted) return;
+
+  if (body.citations.length) {
+    yield { type: "citations", citations: body.citations.map(toCitation) };
+  }
+  yield { type: "token", text: body.response };
   yield {
     type: "done",
     metrics: {
+      // Measured in the browser, so it includes the network, which is what
+      // the person waiting actually experienced.
       latencyMs: Math.round(performance.now() - started),
-      promptTokens: 0,
-      completionTokens: 0,
-      cacheHit: "none",
-      retrievedChunks: script.citations.length,
+      promptTokens: body.tokens_input,
+      completionTokens: body.tokens_output,
+      cacheHit: body.cached,
+      retrievedChunks: body.retrieved_chunks,
+      model: body.model_used,
     },
   };
 }
 
-/** GET /metrics, still mocked. */
-export async function getMetrics(): Promise<SystemMetrics> {
-  await delay(200);
-  return MOCK_METRICS;
+/** GET /analytics */
+export function getAnalytics(hours = 24): Promise<Analytics> {
+  return getJson(`/analytics?hours=${hours}`);
 }

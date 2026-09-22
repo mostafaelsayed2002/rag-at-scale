@@ -50,11 +50,23 @@ class Cache:
         except RedisError as exc:
             logger.warning("cache read failed, continuing without it: %s", exc)
             return None
+        # Counted per namespace as well as in total: "the cache is at 40%"
+        # hides that query embeddings hit constantly and whole answers rarely,
+        # which are two different decisions.
+        await self._count("hits" if found is not None else "misses", namespace)
         if found is None:
             self.misses += 1
             return None
         self.hits += 1
         return found
+
+    async def _count(self, outcome: str, namespace: str) -> None:
+        try:
+            await self.client.incr(f"rag:{VERSION}:metrics:cache:{namespace}:{outcome}")
+        except RedisError:
+            # Already logged by the caller's own failure; a lost count is not
+            # worth a second warning.
+            pass
 
     async def set(self, namespace: str, value: str, result: str) -> None:
         if self.client is None:

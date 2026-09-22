@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 
 from fastapi import Request
 from psycopg import Error as PsycopgError
+from psycopg.types.json import Jsonb
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -156,9 +157,10 @@ async def log_request(pool, **row) -> None:
                 """
                 INSERT INTO request_log
                     (path, query, status_code, latency_ms, cache_hit,
-                     tokens_input, tokens_output, error)
+                     tokens_input, tokens_output, error, stages)
                 VALUES (%(path)s, %(query)s, %(status_code)s, %(latency_ms)s,
-                        %(cache_hit)s, %(tokens_input)s, %(tokens_output)s, %(error)s)
+                        %(cache_hit)s, %(tokens_input)s, %(tokens_output)s,
+                        %(error)s, %(stages)s)
                 """,
                 row,
             )
@@ -197,6 +199,9 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             cache_hit = getattr(state, "cache_hit", None)
             tokens_input = getattr(state, "tokens_input", 0)
             tokens_output = getattr(state, "tokens_output", 0)
+            # {"embedding": 41.2, "retrieval": 8.9, "generation": 31980.0} —
+            # where the time went, so a slow answer says which part to fix.
+            stages = getattr(state, "stages", None)
 
             app = request.app
             await app.state.metrics.record(
@@ -209,7 +214,10 @@ class MetricsMiddleware(BaseHTTPMiddleware):
             await log_request(
                 app.state.pool,
                 path=request.url.path,
-                query=request.query_params.get("q"),
+                # Chat sends its question in the body, which the middleware
+                # cannot read without consuming the stream, so the endpoint
+                # leaves it on the state instead.
+                query=getattr(state, "query", None) or request.query_params.get("q"),
                 status_code=status,
                 latency_ms=round(elapsed, 2),
                 # The column is NOT NULL: "never looked" and "looked and
@@ -218,4 +226,5 @@ class MetricsMiddleware(BaseHTTPMiddleware):
                 tokens_input=tokens_input,
                 tokens_output=tokens_output,
                 error=None if status < 400 else f"HTTP {status}",
+                stages=Jsonb(stages) if stages else None,
             )

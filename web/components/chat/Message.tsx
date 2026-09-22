@@ -176,7 +176,10 @@ function SourceList({ citations, onOpenCitation }: { citations: Citation[]; onOp
                     page {c.page}
                   </span>
                 </span>
-                <span className="shrink-0 pt-0.5 font-mono text-[11px] tabular-nums text-subtle" title="Rerank score">
+                <span
+                  className="shrink-0 pt-0.5 font-mono text-[11px] tabular-nums text-subtle"
+                  title="Cosine similarity to the question"
+                >
                   {c.score.toFixed(2)}
                 </span>
               </button>
@@ -187,8 +190,6 @@ function SourceList({ citations, onOpenCitation }: { citations: Citation[]; onOp
     </div>
   );
 }
-
-const CACHE_LABEL = { none: null, embedding: "Embedding cached", semantic: "Semantic cache hit", response: "Response cache hit" };
 
 function MessageFooter({ message }: { message: MessageType }) {
   const [copied, setCopied] = useState(false);
@@ -215,18 +216,22 @@ function MessageFooter({ message }: { message: MessageType }) {
             <Clock size={12} aria-hidden />
             {formatMs(m.latencyMs)}
           </span>
-          <span className="inline-flex items-center gap-1" title="Prompt and completion tokens">
-            <Hash size={12} aria-hidden />
-            {m.promptTokens + m.completionTokens} tokens
-          </span>
-          <span className="inline-flex items-center gap-1" title="Chunks retrieved before reranking">
+          {/* A cached answer cost nothing, so the count is hidden rather than
+              shown as a misleading zero. */}
+          {!m.cacheHit && (
+            <span className="inline-flex items-center gap-1" title={`Prompt and completion tokens · ${m.model}`}>
+              <Hash size={12} aria-hidden />
+              {m.promptTokens + m.completionTokens} tokens
+            </span>
+          )}
+          <span className="inline-flex items-center gap-1" title="Passages put in front of the model">
             <Database size={12} aria-hidden />
             {m.retrievedChunks} retrieved
           </span>
-          {CACHE_LABEL[m.cacheHit] && (
-            <span className="inline-flex items-center gap-1 text-good">
+          {m.cacheHit && (
+            <span className="inline-flex items-center gap-1 text-good" title="Served from the answer cache: no tokens spent">
               <Zap size={12} aria-hidden />
-              {CACHE_LABEL[m.cacheHit]}
+              Cached
             </span>
           )}
         </>

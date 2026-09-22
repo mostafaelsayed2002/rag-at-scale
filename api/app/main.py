@@ -2,7 +2,7 @@
 
 import logging
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from .analytics import overview
 from .cache import build_cache
 from .config import settings
 from .db import pool
@@ -112,6 +113,16 @@ async def metrics():
     return await app.state.metrics.summary()
 
 
+@app.get("/analytics")
+async def analytics(hours: int = Query(default=24, ge=1, le=720)):
+    """What the dashboard shows: percentiles, trends and corpus facts.
+
+    Computed from request_log rather than from the counters, because a counter
+    cannot produce a percentile or a series.
+    """
+    return await overview(pool, app.state.cache.client, hours)
+
+
 @app.get("/documents", response_model=list[DocumentSummary])
 async def list_documents():
     """Every ingested document, for the documents panel."""
@@ -166,8 +177,23 @@ async def get_document_file(doc_id: str):
     )
 
 
-async def embed_cached(q: str) -> str:
-    """The query as a pgvector literal, from the cache when it has been asked.
+class Stopwatch:
+    """Times the parts of a request, so a slow answer says which part to fix."""
+
+    def __init__(self):
+        self.stages: dict[str, float] = {}
+
+    @contextmanager
+    def __call__(self, stage: str):
+        started = time.perf_counter()
+        try:
+            yield
+        finally:
+            self.stages[stage] = round((time.perf_counter() - started) * 1000, 2)
+
+
+async def embed_cached(q: str) -> tuple[str, bool]:
+    """The query vector, and whether it came from the cache.
 
     Shared by search and chat: embedding is a paid network call, and the same
     question always produces the same vector. The key includes the model,
@@ -179,7 +205,7 @@ async def embed_cached(q: str) -> str:
     fingerprint = f"{settings.embedding_model}:{settings.embedding_dim}:{q}"
     vector = await app.state.cache.get("embed", fingerprint)
     if vector is not None:
-        return vector
+        return vector, True
 
     try:
         vector = embed_query(app.state.embedder, q)
@@ -196,7 +222,7 @@ async def embed_cached(q: str) -> str:
         raise
 
     await app.state.cache.set("embed", fingerprint, vector)
-    return vector
+    return vector, False
 
 
 async def retrieve(vector: str, k: int, collection: str | None = None) -> list[dict]:
@@ -227,13 +253,17 @@ async def search(
     collection: str | None = Query(default=None, description="restrict to one collection"),
 ):
     """The passages themselves, without an answer written over them."""
-    cached = await app.state.cache.get("embed", f"{settings.embedding_model}:{settings.embedding_dim}:{q}")
+    clock = Stopwatch()
+    with clock("embedding"):
+        vector, hit = await embed_cached(q)
+    with clock("retrieval"):
+        hits = await retrieve(vector, k, collection)
+
     # Left for the metrics middleware, which runs after this and cannot see
     # what happened inside the endpoint.
-    request.state.cache_hit = cached is not None
-
-    vector = await embed_cached(q)
-    return await retrieve(vector, k, collection)
+    request.state.cache_hit = hit
+    request.state.stages = clock.stages
+    return hits
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -248,6 +278,11 @@ async def chat(request: Request, body: ChatRequest):
         raise HTTPException(status_code=503, detail="Chat needs GOOGLE_API_KEY")
 
     started = time.perf_counter()
+    clock = Stopwatch()
+    # Recorded for the history: the question arrives in the body, which the
+    # middleware cannot read.
+    request.state.query = body.query
+
     # The model and k belong in the key: change either and the stored answer
     # is no longer the answer this configuration would produce.
     fingerprint = f"{settings.llm_model}:{settings.retrieve_k}:{body.query}"
@@ -257,10 +292,13 @@ async def chat(request: Request, body: ChatRequest):
     if stored is not None:
         answer = Answer.model_validate_json(stored)
     else:
-        vector = await embed_cached(body.query)
-        chunks = await retrieve(vector, settings.retrieve_k)
+        with clock("embedding"):
+            vector, _ = await embed_cached(body.query)
+        with clock("retrieval"):
+            chunks = await retrieve(vector, settings.retrieve_k)
         try:
-            answer = await answer_question(app.state.llm, body.query, chunks)
+            with clock("generation"):
+                answer = await answer_question(app.state.llm, body.query, chunks)
         except Exception as exc:
             message = str(exc)
             if "RESOURCE_EXHAUSTED" in message or "429" in message:
@@ -271,6 +309,8 @@ async def chat(request: Request, body: ChatRequest):
                 ) from exc
             raise
         await app.state.cache.set("answer", fingerprint, answer.model_dump_json())
+
+    request.state.stages = clock.stages
 
     # Read by the metrics middleware. A cached answer spent no tokens, and
     # counting them again would inflate the reported cost.
@@ -283,5 +323,8 @@ async def chat(request: Request, body: ChatRequest):
         thread_id=body.thread_id,
         model_used=settings.llm_model,
         cached=stored is not None,
+        retrieved_chunks=answer.retrieved,
+        tokens_input=answer.tokens_input,
+        tokens_output=answer.tokens_output,
         processing_time=round(time.perf_counter() - started, 3),
     )

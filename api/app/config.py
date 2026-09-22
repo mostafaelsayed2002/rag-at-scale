@@ -47,6 +47,12 @@ class Settings(BaseSettings):
     # and buries the relevant passage among near misses.
     retrieve_k: int = 6
 
+    # Published prices, used to turn real token counts into a cost estimate.
+    # Settings rather than constants: a price is not something code can
+    # measure, and anything shown from these is labelled an estimate.
+    usd_per_million_input_tokens: float = 0.10
+    usd_per_million_output_tokens: float = 0.40
+
     # Shared cache. Empty disables it, so the API still runs with no Redis
     # around, just paying for every repeated query.
     redis_url: str = "redis://localhost:6379/0"

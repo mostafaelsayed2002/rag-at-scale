@@ -8,7 +8,7 @@ import { useConversations } from "@/lib/conversations";
 import { newId } from "@/lib/format";
 import { useMediaQuery } from "@/lib/use-media-query";
 import type { Citation, Message } from "@/lib/types";
-import { DemoBadge, IconButton } from "../ui";
+import { IconButton } from "../ui";
 import { DocumentsPanel, type DocumentTarget } from "../documents/DocumentsPanel";
 import { Composer } from "./Composer";
 import { EmptyState } from "./EmptyState";
@@ -177,9 +177,6 @@ export function ChatApp() {
           <h1 className="min-w-0 flex-1 truncate px-2 text-sm font-medium text-fg/90">
             {active?.title ?? "New chat"}
           </h1>
-          <div className="hidden sm:block">
-            <DemoBadge />
-          </div>
           <Link
             href="/analytics"
             aria-label="System analytics"
