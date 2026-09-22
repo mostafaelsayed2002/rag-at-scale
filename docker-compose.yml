@@ -24,6 +24,13 @@ services:
       # Host is the service name, not localhost: inside the network each
       # service is reachable by name, and localhost means this container.
       DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD:-rag}@postgres:5432/${POSTGRES_DB:-rag}
+      # Queries are embedded with the same model the corpus used.
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      DATA_DIR: /app/data
+    volumes:
+      # The corpus itself, so a citation can open the original PDF. Read-only:
+      # the API serves these files and must never modify them.
+      - ./data:/app/data:ro
     ports:
       - "8000:8000"
     depends_on:
