@@ -31,6 +31,13 @@ class Settings(BaseSettings):
     embedding_model: str = "models/gemini-embedding-2"
     embedding_dim: int = 768
 
+    # Shared cache. Empty disables it, so the API still runs with no Redis
+    # around, just paying for every repeated query.
+    redis_url: str = "redis://localhost:6379/0"
+    # An hour. The corpus does not change between deployments, so this is a
+    # limit on how long a stale answer could survive, not on correctness.
+    cache_ttl: int = 3600
+
     # Where the corpus PDFs live, so the API can serve the file a citation
     # points at. Mounted read-only into the container.
     data_dir: Path = ROOT / "data"
