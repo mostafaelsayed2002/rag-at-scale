@@ -22,6 +22,10 @@ services:
     # cache. Not critical for a cache, but it keeps the first requests after a
     # deploy from all being misses.
     command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      # Development only, like Postgres above: so an API started with uvicorn
+      # on the host can reach it. The production file publishes nothing.
+      - "6379:6379"
     volumes:
       - redisdata:/data
     healthcheck:
