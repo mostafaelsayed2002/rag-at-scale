@@ -31,6 +31,34 @@ services:
         aliases:
           - rag-postgres
 
+  redis:
+    image: redis:7-alpine
+    # maxmemory plus an eviction policy is the part that matters on a shared
+    # server: Redis drops the least recently used entries instead of growing
+    # until the host runs out of memory.
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --maxmemory
+      - 256mb
+      - --maxmemory-policy
+      - allkeys-lru
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      # Private network only. An unauthenticated Redis reachable from the
+      # shared network would be an open door.
+      internal:
+        aliases:
+          - rag-redis
+
   api:
     # TAG is a commit hash in a real deploy, which is what makes rollback
     # a matter of changing one value and restarting.
@@ -38,6 +66,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@rag-postgres:5432/${POSTGRES_DB:-rag}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:?set GOOGLE_API_KEY in .env}
+      REDIS_URL: redis://rag-redis:6379/0
       DATA_DIR: /app/data
     volumes:
       # The corpus PDFs, copied to the server with rsync rather than baked into
@@ -46,6 +75,8 @@ services:
       - ./data:/app/data:ro
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
     networks:
@@ -76,3 +107,4 @@ networks:
 
 volumes:
   pgdata:
+  redisdata:

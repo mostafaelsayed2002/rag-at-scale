@@ -16,6 +16,20 @@ services:
       timeout: 5s
       retries: 10
 
+  redis:
+    image: redis:7-alpine
+    # appendonly writes each change to a log, so a restart does not empty the
+    # cache. Not critical for a cache, but it keeps the first requests after a
+    # deploy from all being misses.
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     build:
       context: .
@@ -26,6 +40,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD:-rag}@postgres:5432/${POSTGRES_DB:-rag}
       # Queries are embedded with the same model the corpus used.
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      # Again the service name: redis answers to it inside the network.
+      REDIS_URL: redis://redis:6379/0
       DATA_DIR: /app/data
     volumes:
       # The corpus itself, so a citation can open the original PDF. Read-only:
@@ -36,6 +52,8 @@ services:
     depends_on:
       # Waits for the healthcheck to pass, not just for the container to start.
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   web:
@@ -71,3 +89,4 @@ services:
 volumes:
   pgdata:
   pgadmin:
+  redisdata:
