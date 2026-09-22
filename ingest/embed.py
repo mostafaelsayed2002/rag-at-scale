@@ -70,15 +70,26 @@ def _client_error(exc: BaseException) -> ClientError | None:
     return None
 
 
+class DailyQuotaExhausted(RuntimeError):
+    """The free tier's per-day allowance is gone until it resets."""
+
+
 def _is_permanent(exc: Exception) -> bool:
     """True for failures that waiting cannot fix.
 
     The client raises ClientError for every 4xx: a rejected key, an unknown
     model, a malformed request. Those should fail at once. The exception is
-    429, a rate limit, which is exactly what backing off is for.
+    429, a rate limit, which is exactly what backing off is for, unless the
+    quota that ran out is the daily one.
     """
     error = _client_error(exc)
-    return error is not None and getattr(error, "code", None) != TOO_MANY_REQUESTS
+    if error is None:
+        return False
+    if getattr(error, "code", None) != TOO_MANY_REQUESTS:
+        return True
+    # A per-day quota still reports "please retry in 44s", which is wrong:
+    # the window resets tomorrow, not in a minute.
+    return "PerDay" in str(exc)
 
 
 def _retry_after(exc: Exception) -> float | None:
@@ -98,6 +109,9 @@ def _embedder() -> GoogleGenerativeAIEmbeddings:
     return GoogleGenerativeAIEmbeddings(
         model=settings.embedding_model,
         output_dimensionality=settings.embedding_dim,
+        # Passed explicitly: pydantic-settings reads .env into this object, not
+        # into the process environment where the client looks for the key.
+        google_api_key=settings.google_api_key,
     )
 
 
@@ -115,6 +129,11 @@ def _with_retries(call, what: str, count: int = 1):
             _throttle(count)
             return call()
         except Exception as exc:
+            if _is_permanent(exc) and "PerDay" in str(exc):
+                raise DailyQuotaExhausted(
+                    "Gemini free tier daily quota is used up. Enable billing on "
+                    "the project, or continue after it resets."
+                ) from exc
             if attempt == MAX_ATTEMPTS or _is_permanent(exc):
                 raise
             # Google says how long its quota window has left; otherwise back

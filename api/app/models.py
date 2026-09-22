@@ -1,6 +1,13 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
+
+from .llm import Citation
+
+
+def _now() -> datetime:
+    """Timezone-aware UTC. utcnow() returns a naive value and is deprecated."""
+    return datetime.now(tz=timezone.utc)
 
 
 class ChatRequest(BaseModel):
@@ -9,10 +16,13 @@ class ChatRequest(BaseModel):
     query: str = Field(
         ..., description="The user's query to the chatbot.", min_length=1, max_length=1000
     )
-    user_id: str = Field(..., description="The unique identifier for the user.")
-    thread_id: str = Field(..., description="The unique identifier for the conversation thread.")
+    user_id: str = Field(default="anonymous", description="The unique identifier for the user.")
+    thread_id: str = Field(
+        default="default",
+        description="Conversation thread. Recorded, but answers are single-turn for now.",
+    )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=_now,
         description="The timestamp of the request.",
     )
 
@@ -21,15 +31,18 @@ class ChatResponse(BaseModel):
     """Response model for chat endpoint."""
 
     response: str = Field(..., description="The chatbot's response to the user's query.")
-
+    citations: list[Citation] = Field(
+        default_factory=list,
+        description="The passages behind the answer, in the order first cited.",
+    )
     thread_id: str = Field(..., description="The unique identifier for the conversation thread.")
     model_used: str = Field(..., description="The model used to generate the response.")
-    cashed: bool = Field(..., description="Indicates if the response was retrieved from cache.")
+    cached: bool = Field(..., description="Indicates if the response was retrieved from cache.")
     processing_time: float = Field(
         ..., description="The time taken to process the request in seconds."
     )
     timestamp: datetime = Field(
-        default_factory=datetime.utcnow,
+        default_factory=_now,
         description="The timestamp of the response.",
     )
 

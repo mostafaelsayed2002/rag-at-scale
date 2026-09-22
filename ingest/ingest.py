@@ -18,7 +18,7 @@ from chunk import chunking
 from pathlib import Path
 
 import pymupdf
-from embed import embed_chunks
+from embed import DailyQuotaExhausted, embed_chunks
 from load import load_pdfs
 from models import DocumentInfo
 from store import connect, corpus_stats, is_unchanged, store_document
@@ -120,6 +120,13 @@ def main() -> int:
                 documents += 1
                 chunks_total += len(chunks)
                 chars_total += chars
+            except DailyQuotaExhausted as exc:
+                # Nothing left to do today; stop rather than failing every
+                # remaining document one by one.
+                logger.error("%s", exc)
+                failed += 1
+                document.close()
+                break
             except Exception:
                 # One unreadable PDF or one failed API call should not end the
                 # run: its transaction is rolled back and the rest continue.

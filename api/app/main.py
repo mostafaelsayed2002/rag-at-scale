@@ -1,17 +1,22 @@
 """Search the corpus, list its documents, and serve the PDFs behind citations."""
 
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from .cache import build_cache
 from .config import settings
 from .db import pool
 from .embeddings import build_embedder, embed_query
+from .llm import Answer, answer_question, build_llm
+from .models import ChatRequest, ChatResponse, MatricsResponse
+from .monitoring import Metrics, MetricsMiddleware, setup_logging
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +67,31 @@ def index_pdfs(data_dir: Path) -> dict[str, Path]:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging(settings.log_level, as_json=settings.is_production)
     await pool.open()
+    # The middleware reaches the database through this, so it does not have to
+    # import the pool itself.
+    app.state.pool = pool
     app.state.pdfs = index_pdfs(settings.data_dir)
     app.state.embedder = build_embedder() if settings.google_api_key else None
+    app.state.llm = build_llm() if settings.google_api_key else None
+    app.state.cache = build_cache()
+    # Shares the cache's connection: one client is enough, and a second pool
+    # to the same Redis would buy nothing.
+    app.state.metrics = Metrics(app.state.cache.client)
     yield
     await pool.close()
+    if app.state.cache.client is not None:
+        await app.state.cache.client.aclose()
 
 
 app = FastAPI(title="RAG at Scale", lifespan=lifespan)
+
+# The last middleware added is the outermost, so CORS below wraps this one.
+# That is the order we want: CORS headers are attached even to responses this
+# one counted as errors, and browser preflights are answered without being
+# measured as traffic.
+app.add_middleware(MetricsMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -82,6 +104,12 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/metrics", response_model=MatricsResponse)
+async def metrics():
+    """Live counters, shared by every worker through Redis."""
+    return await app.state.metrics.summary()
 
 
 @app.get("/documents", response_model=list[DocumentSummary])
@@ -138,19 +166,25 @@ async def get_document_file(doc_id: str):
     )
 
 
-@app.get("/search", response_model=list[SearchHit])
-async def search(
-    q: str = Query(min_length=1, description="what to search for"),
-    k: int = Query(default=10, ge=1, le=50, description="how many results"),
-    collection: str | None = Query(default=None, description="restrict to one collection"),
-):
+async def embed_cached(q: str) -> str:
+    """The query as a pgvector literal, from the cache when it has been asked.
+
+    Shared by search and chat: embedding is a paid network call, and the same
+    question always produces the same vector. The key includes the model,
+    because vectors from two models are not comparable.
+    """
     if app.state.embedder is None:
-        raise HTTPException(status_code=503, detail="Search needs GOOGLE_API_KEY")
+        raise HTTPException(status_code=503, detail="This needs GOOGLE_API_KEY")
+
+    fingerprint = f"{settings.embedding_model}:{settings.embedding_dim}:{q}"
+    vector = await app.state.cache.get("embed", fingerprint)
+    if vector is not None:
+        return vector
 
     try:
         vector = embed_query(app.state.embedder, q)
     except Exception as exc:
-        # The query has to be embedded before anything can be searched, so an
+        # The query has to be embedded before anything can be retrieved, so an
         # exhausted quota is reported as such rather than as a server fault.
         message = str(exc)
         if "RESOURCE_EXHAUSTED" in message or "429" in message:
@@ -161,6 +195,12 @@ async def search(
             ) from exc
         raise
 
+    await app.state.cache.set("embed", fingerprint, vector)
+    return vector
+
+
+async def retrieve(vector: str, k: int, collection: str | None = None) -> list[dict]:
+    """The k passages closest to the query vector."""
     async with pool.connection() as conn:
         cur = await conn.execute(
             """
@@ -177,3 +217,71 @@ async def search(
             (vector, collection, collection, vector, k),
         )
         return await cur.fetchall()
+
+
+@app.get("/search", response_model=list[SearchHit])
+async def search(
+    request: Request,
+    q: str = Query(min_length=1, description="what to search for"),
+    k: int = Query(default=10, ge=1, le=50, description="how many results"),
+    collection: str | None = Query(default=None, description="restrict to one collection"),
+):
+    """The passages themselves, without an answer written over them."""
+    cached = await app.state.cache.get("embed", f"{settings.embedding_model}:{settings.embedding_dim}:{q}")
+    # Left for the metrics middleware, which runs after this and cannot see
+    # what happened inside the endpoint.
+    request.state.cache_hit = cached is not None
+
+    vector = await embed_cached(q)
+    return await retrieve(vector, k, collection)
+
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: Request, body: ChatRequest):
+    """Retrieve passages, then have the model write an answer that cites them.
+
+    The whole answer is cached, not just the embedding: at temperature zero
+    the same question produces the same answer, so serving the stored one is
+    honest rather than merely convenient, and costs no tokens at all.
+    """
+    if app.state.llm is None:
+        raise HTTPException(status_code=503, detail="Chat needs GOOGLE_API_KEY")
+
+    started = time.perf_counter()
+    # The model and k belong in the key: change either and the stored answer
+    # is no longer the answer this configuration would produce.
+    fingerprint = f"{settings.llm_model}:{settings.retrieve_k}:{body.query}"
+    stored = await app.state.cache.get("answer", fingerprint)
+    request.state.cache_hit = stored is not None
+
+    if stored is not None:
+        answer = Answer.model_validate_json(stored)
+    else:
+        vector = await embed_cached(body.query)
+        chunks = await retrieve(vector, settings.retrieve_k)
+        try:
+            answer = await answer_question(app.state.llm, body.query, chunks)
+        except Exception as exc:
+            message = str(exc)
+            if "RESOURCE_EXHAUSTED" in message or "429" in message:
+                logger.warning("generation quota exhausted: %s", message)
+                raise HTTPException(
+                    status_code=429,
+                    detail="The model quota is used up, so answering is unavailable right now.",
+                ) from exc
+            raise
+        await app.state.cache.set("answer", fingerprint, answer.model_dump_json())
+
+    # Read by the metrics middleware. A cached answer spent no tokens, and
+    # counting them again would inflate the reported cost.
+    request.state.tokens_input = answer.tokens_input
+    request.state.tokens_output = answer.tokens_output
+
+    return ChatResponse(
+        response=answer.text,
+        citations=answer.citations,
+        thread_id=body.thread_id,
+        model_used=settings.llm_model,
+        cached=stored is not None,
+        processing_time=round(time.perf_counter() - started, 3),
+    )
