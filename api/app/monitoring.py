@@ -177,9 +177,11 @@ class MetricsMiddleware(BaseHTTPMiddleware):
     actually waited, including the database and serialisation.
     """
 
-    # Measuring the metrics endpoint with itself makes the numbers report on
-    # the act of reading them; health checks would drown everything else.
-    SKIP = {"/metrics", "/health", "/docs", "/openapi.json"}
+    # Measuring the metrics endpoints with themselves makes the numbers report
+    # on the act of reading them: refreshing the dashboard would raise the
+    # request count and add itself to the slowest queries. Health checks are
+    # skipped for the same reason, since Docker calls one every five seconds.
+    SKIP = {"/metrics", "/analytics", "/health", "/docs", "/openapi.json"}
 
     async def dispatch(self, request: Request, call_next):
         if request.url.path in self.SKIP:
