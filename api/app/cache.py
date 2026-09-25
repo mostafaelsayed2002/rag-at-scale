@@ -1,13 +1,16 @@
-"""A shared cache in Redis, because every identical query costs money.
+"""The answer cache, because every identical question costs money.
 
-A dictionary in the process would have worked for one server on one machine.
-Redis is here for the three things it cannot do: survive a restart, be shared
-by every worker and every container, and expire its own entries instead of
+One check, at the top of /chat: if the same question has been answered in the
+last hour, the stored answer is returned and nothing else runs — no embedding
+call, no search, no generation.
+
+Redis rather than a dictionary for three reasons: it survives a restart, every
+worker and container shares it, and it expires its own entries instead of
 growing forever.
 
-Nothing here is allowed to break a request. Redis is an optimisation, so every
-call to it is wrapped: if it is down or slow, the caller misses the cache and
-does the real work, exactly as if the entry had never been stored.
+Nothing here may break a request. Redis is an optimisation, so every call is
+wrapped: if it is down or slow, the caller misses and does the real work,
+exactly as if nothing had been stored.
 """
 
 import hashlib
@@ -27,54 +30,41 @@ VERSION = "v1"
 
 
 class Cache:
-    """Key-value cache over Redis, with a time to live on every entry."""
+    """Question in, answer out, with a time to live on every entry."""
 
     def __init__(self, client: Redis | None, ttl: int = 3600):
         self.client = client
         self.ttl = ttl
-        # Counted for /metrics later; also the honest way to tell whether the
-        # cache is earning its keep.
+        # Reported by /metrics; also the honest way to tell whether the cache
+        # is earning its keep.
         self.hits = 0
         self.misses = 0
 
-    def _key(self, namespace: str, value: str) -> str:
-        """Hash the value: queries are long, arbitrary, and may repeat."""
-        digest = hashlib.sha256(value.encode()).hexdigest()
-        return f"rag:{VERSION}:{namespace}:{digest}"
+    def _key(self, question: str) -> str:
+        """Hash it: questions are long, arbitrary, and may repeat exactly."""
+        return f"rag:{VERSION}:answer:{hashlib.sha256(question.encode()).hexdigest()}"
 
-    async def get(self, namespace: str, value: str) -> str | None:
+    async def get(self, question: str) -> str | None:
         if self.client is None:
             return None
         try:
-            found = await self.client.get(self._key(namespace, value))
+            found = await self.client.get(self._key(question))
         except RedisError as exc:
             logger.warning("cache read failed, continuing without it: %s", exc)
             return None
-        # Counted per namespace as well as in total: "the cache is at 40%"
-        # hides that query embeddings hit constantly and whole answers rarely,
-        # which are two different decisions.
-        await self._count("hits" if found is not None else "misses", namespace)
         if found is None:
             self.misses += 1
             return None
         self.hits += 1
         return found
 
-    async def _count(self, outcome: str, namespace: str) -> None:
-        try:
-            await self.client.incr(f"rag:{VERSION}:metrics:cache:{namespace}:{outcome}")
-        except RedisError:
-            # Already logged by the caller's own failure; a lost count is not
-            # worth a second warning.
-            pass
-
-    async def set(self, namespace: str, value: str, result: str) -> None:
+    async def set(self, question: str, answer: str) -> None:
         if self.client is None:
             return
         try:
             # ex is the expiry in seconds, applied by Redis itself: the entry
             # disappears on its own, so nothing has to sweep up after it.
-            await self.client.set(self._key(namespace, value), result, ex=self.ttl)
+            await self.client.set(self._key(question), answer, ex=self.ttl)
         except RedisError as exc:
             logger.warning("cache write failed, continuing without it: %s", exc)
 
@@ -89,5 +79,5 @@ def build_cache() -> Cache:
         logger.info("no REDIS_URL set; running without a cache")
         return Cache(None)
     client = Redis.from_url(settings.redis_url, decode_responses=True)
-    logger.info("cache enabled, entries live for %ds", settings.cache_ttl)
+    logger.info("answer cache enabled, entries live for %ds", settings.cache_ttl)
     return Cache(client, ttl=settings.cache_ttl)

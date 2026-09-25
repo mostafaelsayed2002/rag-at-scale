@@ -120,7 +120,7 @@ async def analytics(hours: int = Query(default=24, ge=1, le=720)):
     Computed from request_log rather than from the counters, because a counter
     cannot produce a percentile or a series.
     """
-    return await overview(pool, app.state.cache.client, hours)
+    return await overview(pool, hours)
 
 
 @app.get("/documents", response_model=list[DocumentSummary])
@@ -192,26 +192,16 @@ class Stopwatch:
             self.stages[stage] = round((time.perf_counter() - started) * 1000, 2)
 
 
-async def embed_cached(q: str) -> tuple[str, bool]:
-    """The query vector, and whether it came from the cache.
-
-    Shared by search and chat: embedding is a paid network call, and the same
-    question always produces the same vector. The key includes the model,
-    because vectors from two models are not comparable.
-    """
+def embed(q: str) -> str:
+    """The question as a pgvector literal, ready to compare against the corpus."""
     if app.state.embedder is None:
         raise HTTPException(status_code=503, detail="This needs GOOGLE_API_KEY")
 
-    fingerprint = f"{settings.embedding_model}:{settings.embedding_dim}:{q}"
-    vector = await app.state.cache.get("embed", fingerprint)
-    if vector is not None:
-        return vector, True
-
     try:
-        vector = embed_query(app.state.embedder, q)
+        return embed_query(app.state.embedder, q)
     except Exception as exc:
-        # The query has to be embedded before anything can be retrieved, so an
-        # exhausted quota is reported as such rather than as a server fault.
+        # The question has to be embedded before anything can be retrieved, so
+        # an exhausted quota is reported as such rather than as a server fault.
         message = str(exc)
         if "RESOURCE_EXHAUSTED" in message or "429" in message:
             logger.warning("embedding quota exhausted: %s", message)
@@ -220,9 +210,6 @@ async def embed_cached(q: str) -> tuple[str, bool]:
                 detail="The embedding quota is used up, so search is unavailable right now.",
             ) from exc
         raise
-
-    await app.state.cache.set("embed", fingerprint, vector)
-    return vector, False
 
 
 async def retrieve(vector: str, k: int, collection: str | None = None) -> list[dict]:
@@ -255,13 +242,13 @@ async def search(
     """The passages themselves, without an answer written over them."""
     clock = Stopwatch()
     with clock("embedding"):
-        vector, hit = await embed_cached(q)
+        vector = embed(q)
     with clock("retrieval"):
         hits = await retrieve(vector, k, collection)
 
     # Left for the metrics middleware, which runs after this and cannot see
-    # what happened inside the endpoint.
-    request.state.cache_hit = hit
+    # what happened inside the endpoint. Search has no cache of its own: the
+    # cache holds answers, and search does not produce one.
     request.state.stages = clock.stages
     return hits
 
@@ -270,9 +257,10 @@ async def search(
 async def chat(request: Request, body: ChatRequest):
     """Retrieve passages, then have the model write an answer that cites them.
 
-    The whole answer is cached, not just the embedding: at temperature zero
-    the same question produces the same answer, so serving the stored one is
-    honest rather than merely convenient, and costs no tokens at all.
+    One cache check comes first. At temperature zero the same question gives
+    the same answer, so serving the stored one is honest rather than merely
+    convenient — and it costs nothing, since a hit skips the embedding call,
+    the search and the generation alike.
     """
     if app.state.llm is None:
         raise HTTPException(status_code=503, detail="Chat needs GOOGLE_API_KEY")
@@ -286,14 +274,14 @@ async def chat(request: Request, body: ChatRequest):
     # The model and k belong in the key: change either and the stored answer
     # is no longer the answer this configuration would produce.
     fingerprint = f"{settings.llm_model}:{settings.retrieve_k}:{body.query}"
-    stored = await app.state.cache.get("answer", fingerprint)
+    stored = await app.state.cache.get(fingerprint)
     request.state.cache_hit = stored is not None
 
     if stored is not None:
         answer = Answer.model_validate_json(stored)
     else:
         with clock("embedding"):
-            vector, _ = await embed_cached(body.query)
+            vector = embed(body.query)
         with clock("retrieval"):
             chunks = await retrieve(vector, settings.retrieve_k)
         try:
@@ -308,7 +296,7 @@ async def chat(request: Request, body: ChatRequest):
                     detail="The model quota is used up, so answering is unavailable right now.",
                 ) from exc
             raise
-        await app.state.cache.set("answer", fingerprint, answer.model_dump_json())
+        await app.state.cache.set(fingerprint, answer.model_dump_json())
 
     request.state.stages = clock.stages
 

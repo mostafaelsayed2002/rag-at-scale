@@ -7,7 +7,6 @@ removed from the dashboard rather than filled with a plausible number.
 
 import logging
 
-from .cache import VERSION as CACHE_VERSION
 from .config import settings
 
 logger = logging.getLogger(__name__)
@@ -86,38 +85,16 @@ def estimated_cost(tokens_input: int, tokens_output: int) -> float:
     )
 
 
-async def cache_layers(client) -> list[dict]:
-    """Hit rate per cache namespace, from the counters the cache keeps."""
-    layers = [
-        ("embed", "Query embeddings", "Gemini embedding calls avoided"),
-        ("answer", "Answers", "Generation calls avoided"),
-    ]
-    if client is None:
-        return []
-
-    result = []
-    for namespace, label, meaning in layers:
-        prefix = f"rag:{CACHE_VERSION}:metrics:cache:{namespace}"
-        try:
-            hits, misses = await client.mget([f"{prefix}:hits", f"{prefix}:misses"])
-        except Exception as exc:
-            logger.warning("could not read cache counters: %s", exc)
-            return []
-        hits, misses = int(hits or 0), int(misses or 0)
-        lookups = hits + misses
-        result.append(
-            {
-                "layer": label,
-                "meaning": meaning,
-                "hit_rate": round(hits / lookups, 4) if lookups else 0.0,
-                "saved_calls": hits,
-                "lookups": lookups,
-            }
-        )
-    return result
+CACHE_SQL = """
+    SELECT count(*) FILTER (WHERE cache_hit) AS hits,
+           count(*)                          AS lookups
+    FROM request_log
+    WHERE path = '/chat'
+      AND created_at >= now() - make_interval(hours => %s)
+"""
 
 
-async def overview(pool, cache_client, hours: int = 24) -> dict:
+async def overview(pool, hours: int = 24) -> dict:
     """Everything the analytics page shows, in one round of queries."""
     async with pool.connection() as conn:
         totals = await (await conn.execute(TOTALS_SQL, (hours,))).fetchone()
@@ -125,6 +102,7 @@ async def overview(pool, cache_client, hours: int = 24) -> dict:
         stages = await (await conn.execute(STAGES_SQL, (hours,))).fetchall()
         corpus = await (await conn.execute(CORPUS_SQL)).fetchone()
         slowest = await (await conn.execute(SLOWEST_SQL, (hours,))).fetchall()
+        cache = await (await conn.execute(CACHE_SQL, (hours,))).fetchone()
 
     requests = totals["requests"]
     tokens_input = int(totals["tokens_input"])
@@ -167,7 +145,14 @@ async def overview(pool, cache_client, hours: int = 24) -> dict:
             }
             for row in stages
         ],
-        "cache_layers": await cache_layers(cache_client),
+        # Counted from the history, not from Redis counters, so it covers the
+        # same window as everything else on the page. Only /chat consults the
+        # cache, so only /chat belongs in the denominator.
+        "cache": {
+            "hits": cache["hits"],
+            "lookups": cache["lookups"],
+            "hit_rate": round(cache["hits"] / cache["lookups"], 4) if cache["lookups"] else 0.0,
+        },
         "corpus": {
             "documents": corpus["documents"],
             "chunks": corpus["chunks"],

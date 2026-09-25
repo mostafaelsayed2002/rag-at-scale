@@ -121,8 +121,8 @@ function Dashboard({ d }: { d: Analytics }) {
         <Kpi
           icon={<Zap size={15} />}
           label="Cache hit rate"
-          value={formatPercent(overallHitRate(d))}
-          sub={`${formatNumber(savedCalls(d))} paid API ${savedCalls(d) === 1 ? "call" : "calls"} avoided`}
+          value={d.cache.lookups ? formatPercent(d.cache.hit_rate) : "—"}
+          sub={`${formatNumber(d.cache.hits)} of ${formatNumber(d.cache.lookups)} answers reused`}
           tone="good"
         />
         <Kpi
@@ -195,31 +195,36 @@ function Dashboard({ d }: { d: Analytics }) {
                   </li>
                 ))}
               </ul>
-              <Legend items={[["Solid", "p50"], ["Faded", "p95"]]} />
+              {/* Only meaningful once the numbers above are actually two. */}
+              {d.stages.some((s) => s.samples >= 5) && (
+                <Legend items={[["Solid", "p50"], ["Faded", "p95"]]} />
+              )}
             </>
           )}
         </Card>
 
-        <Card className="lg:col-span-2" title="Caches" subtitle="Paid calls avoided" icon={<Layers size={15} />}>
-          {d.cache_layers.every((c) => c.lookups === 0) ? (
-            <Empty>Nothing has been looked up yet.</Empty>
+        <Card
+          className="lg:col-span-2"
+          title="Answer cache"
+          subtitle="Questions asked more than once"
+          icon={<Layers size={15} />}
+        >
+          {d.cache.lookups === 0 ? (
+            <Empty>No questions asked in this window yet.</Empty>
           ) : (
-            <ul className="space-y-4">
-              {d.cache_layers.map((c) => (
-                <li key={c.layer}>
-                  <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
-                    <span>{c.layer}</span>
-                    <span className="font-mono text-xs tabular-nums text-muted">
-                      {c.lookups ? formatPercent(c.hit_rate) : "—"}
-                    </span>
-                  </div>
-                  <Meter value={c.hit_rate} tone="good" />
-                  <p className="mt-1 text-xs text-subtle">
-                    {formatNumber(c.saved_calls)} of {formatNumber(c.lookups)} · {c.meaning}
-                  </p>
-                </li>
-              ))}
-            </ul>
+            <>
+              <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                <span>Served from cache</span>
+                <span className="font-mono text-xs tabular-nums text-muted">
+                  {formatPercent(d.cache.hit_rate)}
+                </span>
+              </div>
+              <Meter value={d.cache.hit_rate} tone="good" />
+              <p className="mt-2 text-xs text-subtle">
+                {formatNumber(d.cache.hits)} of {formatNumber(d.cache.lookups)} answers came from
+                Redis, each skipping an embedding call, a search and a generation.
+              </p>
+            </>
           )}
         </Card>
       </section>
@@ -264,16 +269,6 @@ function Dashboard({ d }: { d: Analytics }) {
       </section>
     </>
   );
-}
-
-/** Hits over lookups across every cache, not an average of the two rates. */
-function overallHitRate(d: Analytics): number {
-  const lookups = d.cache_layers.reduce((sum, c) => sum + c.lookups, 0);
-  return lookups ? savedCalls(d) / lookups : 0;
-}
-
-function savedCalls(d: Analytics): number {
-  return d.cache_layers.reduce((sum, c) => sum + c.saved_calls, 0);
 }
 
 function stageSubtitle(d: Analytics): string {

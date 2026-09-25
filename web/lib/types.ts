@@ -142,13 +142,8 @@ export type Analytics = {
     cache_hit_rate: number;
   }[];
   stages: { stage: string; samples: number; p50_ms: number; p95_ms: number }[];
-  cache_layers: {
-    layer: string;
-    meaning: string;
-    hit_rate: number;
-    saved_calls: number;
-    lookups: number;
-  }[];
+  /** Answer cache, counted over the same window as everything else. */
+  cache: { hits: number; lookups: number; hit_rate: number };
   corpus: {
     documents: number;
     chunks: number;
