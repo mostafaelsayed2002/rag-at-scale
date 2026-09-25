@@ -312,10 +312,13 @@ async def chat(request: Request, body: ChatRequest):
 
     request.state.stages = clock.stages
 
-    # Read by the metrics middleware. A cached answer spent no tokens, and
-    # counting them again would inflate the reported cost.
-    request.state.tokens_input = answer.tokens_input
-    request.state.tokens_output = answer.tokens_output
+    # Read by the metrics middleware. Only a generated answer spent tokens:
+    # a cached one is replayed from Redis and calls nothing, so counting its
+    # stored numbers again would bill the same generation twice. The response
+    # below still reports them, because they are what that answer cost.
+    if stored is None:
+        request.state.tokens_input = answer.tokens_input
+        request.state.tokens_output = answer.tokens_output
 
     return ChatResponse(
         response=answer.text,

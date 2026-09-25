@@ -45,6 +45,7 @@ SERIES_SQL = """
 # Stage timings live in a JSONB column because a search has no generation step.
 STAGES_SQL = """
     SELECT key                                                        AS stage,
+           count(*)                                                   AS samples,
            coalesce(percentile_cont(0.5) WITHIN GROUP (ORDER BY ms), 0)  AS p50_ms,
            coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY ms), 0) AS p95_ms
     FROM request_log,
@@ -158,6 +159,9 @@ async def overview(pool, cache_client, hours: int = 24) -> dict:
         "stages": [
             {
                 "stage": row["stage"],
+                # Carried so the dashboard can tell one measurement from a
+                # distribution: with few rows every percentile is the same.
+                "samples": row["samples"],
                 "p50_ms": round(float(row["p50_ms"]), 1),
                 "p95_ms": round(float(row["p95_ms"]), 1),
             }

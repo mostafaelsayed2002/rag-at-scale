@@ -141,7 +141,7 @@ export type Analytics = {
     error_rate: number;
     cache_hit_rate: number;
   }[];
-  stages: { stage: string; p50_ms: number; p95_ms: number }[];
+  stages: { stage: string; samples: number; p50_ms: number; p95_ms: number }[];
   cache_layers: {
     layer: string;
     meaning: string;

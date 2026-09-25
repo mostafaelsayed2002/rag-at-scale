@@ -122,7 +122,7 @@ function Dashboard({ d }: { d: Analytics }) {
           icon={<Zap size={15} />}
           label="Cache hit rate"
           value={formatPercent(overallHitRate(d))}
-          sub={`${formatNumber(savedCalls(d))} API calls avoided`}
+          sub={`${formatNumber(savedCalls(d))} paid API ${savedCalls(d) === 1 ? "call" : "calls"} avoided`}
           tone="good"
         />
         <Kpi
@@ -185,7 +185,10 @@ function Dashboard({ d }: { d: Analytics }) {
                     <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
                       <span className="capitalize">{s.stage}</span>
                       <span className="font-mono text-xs tabular-nums text-muted">
-                        p50 {formatMs(s.p50_ms)} · p95 {formatMs(s.p95_ms)}
+                        {/* Below a handful of samples every percentile is the
+                            same measurement, and printing p95 next to p50
+                            dresses one request up as a distribution. */}
+                        {s.samples >= 5 ? `p50 ${formatMs(s.p50_ms)} · p95 ${formatMs(s.p95_ms)}` : formatMs(s.p50_ms)}
                       </span>
                     </div>
                     <Meter value={s.p50_ms} secondary={s.p95_ms} max={maxStage} />
@@ -277,7 +280,9 @@ function stageSubtitle(d: Analytics): string {
   const total = d.stages.reduce((sum, s) => sum + s.p50_ms, 0);
   const slowest = d.stages[0];
   if (!slowest || !total) return "Median and 95th percentile per stage";
-  return `${slowest.stage} is ${formatPercent(slowest.p50_ms / total, 0)} of median latency`;
+  const samples = Math.max(...d.stages.map((s) => s.samples));
+  const over = `over ${formatNumber(samples)} request${samples === 1 ? "" : "s"}`;
+  return `${slowest.stage} is ${formatPercent(slowest.p50_ms / total, 0)} of median latency, ${over}`;
 }
 
 function Kpi({
