@@ -14,6 +14,7 @@ import logging
 import re
 
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langsmith import traceable
 from pydantic import BaseModel
 
 from .config import settings
@@ -165,8 +166,13 @@ def usage(response) -> tuple[int, int]:
     return int(meta.get("input_tokens", 0)), int(meta.get("output_tokens", 0))
 
 
+@traceable(run_type="chain", name="answer_question")
 async def answer_question(llm: ChatGoogleGenerativeAI, query: str, chunks: list[dict]) -> Answer:
-    """Turn a question and its retrieved passages into a cited answer."""
+    """Turn a question and its retrieved passages into a cited answer.
+
+    Traced as the parent of the model call, so one trace carries the question,
+    the passages it was given, the answer, and the tokens it cost.
+    """
     if not chunks:
         # Nothing retrieved means nothing to ground an answer in, so there is
         # no reason to spend a call to find that out.

@@ -47,6 +47,14 @@ class Settings(BaseSettings):
     # and buries the relevant passage among near misses.
     retrieve_k: int = 6
 
+    # LangSmith tracing. Off unless explicitly turned on: it sends every
+    # question and every answer to a third party, which should be a decision
+    # rather than something that happens because a key is present.
+    langsmith_tracing: bool = False
+    langsmith_api_key: str | None = None
+    langsmith_project: str = "rag-at-scale"
+    langsmith_endpoint: str = "https://api.smith.langchain.com"
+
     # Published prices, used to turn real token counts into a cost estimate.
     # Settings rather than constants: a price is not something code can
     # measure, and anything shown from these is labelled an estimate.

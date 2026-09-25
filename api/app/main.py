@@ -10,6 +10,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
+from langsmith import traceable
+
 from .analytics import overview
 from .cache import build_cache
 from .config import settings
@@ -18,6 +20,7 @@ from .embeddings import build_embedder, embed_query
 from .llm import Answer, answer_question, build_llm
 from .models import ChatRequest, ChatResponse, MatricsResponse
 from .monitoring import Metrics, MetricsMiddleware, setup_logging
+from .tracing import configure as configure_tracing
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +72,9 @@ def index_pdfs(data_dir: Path) -> dict[str, Path]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging(settings.log_level, as_json=settings.is_production)
+    # Before the model is built: the client reads the environment when it is
+    # constructed, so configuring afterwards would trace nothing.
+    configure_tracing()
     await pool.open()
     # The middleware reaches the database through this, so it does not have to
     # import the pool itself.
@@ -212,8 +218,13 @@ def embed(q: str) -> str:
         raise
 
 
+@traceable(run_type="retriever", name="retrieve")
 async def retrieve(vector: str, k: int, collection: str | None = None) -> list[dict]:
-    """The k passages closest to the query vector."""
+    """The k passages closest to the query vector.
+
+    Traced as a retriever so a trace shows which passages an answer was built
+    from, which is what separates a retrieval problem from a prompting one.
+    """
     async with pool.connection() as conn:
         cur = await conn.execute(
             """
