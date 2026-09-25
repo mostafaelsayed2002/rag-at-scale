@@ -126,8 +126,11 @@ export type Analytics = {
     error_rate: number;
     avg_latency_ms: number;
     p50_latency_ms: number;
+    p90_latency_ms: number;
     p95_latency_ms: number;
     p99_latency_ms: number;
+    max_latency_ms: number;
+    min_latency_ms: number;
     tokens_input: number;
     tokens_output: number;
     /** Real token counts at configured prices, so it is an estimate. */

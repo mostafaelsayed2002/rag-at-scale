@@ -116,7 +116,7 @@ function Dashboard({ d }: { d: Analytics }) {
           icon={<Clock size={15} />}
           label="p95 latency"
           value={formatMs(t.p95_latency_ms)}
-          sub={`p50 ${formatMs(t.p50_latency_ms)} · p99 ${formatMs(t.p99_latency_ms)}`}
+          sub={`p50 ${formatMs(t.p50_latency_ms)} · p90 ${formatMs(t.p90_latency_ms)}`}
         />
         <Kpi
           icon={<Zap size={15} />}
@@ -230,6 +230,40 @@ function Dashboard({ d }: { d: Analytics }) {
       </section>
 
       <section className="grid gap-3 lg:grid-cols-2">
+        <Card
+          title="Latency distribution"
+          subtitle={`Every request in the window, fastest ${formatMs(t.min_latency_ms)} to slowest ${formatMs(t.max_latency_ms)}`}
+          icon={<Clock size={15} />}
+        >
+          <ul className="space-y-3">
+            {[
+              ["p50", t.p50_latency_ms, "half of requests were faster"],
+              ["p90", t.p90_latency_ms, "slowest 10% were worse"],
+              ["p95", t.p95_latency_ms, "slowest 5% were worse"],
+              ["p99", t.p99_latency_ms, "slowest 1% were worse"],
+              ["max", t.max_latency_ms, "the single worst request"],
+            ].map(([label, value, meaning]) => (
+              <li key={label as string}>
+                <div className="mb-1 flex items-baseline justify-between gap-3 text-sm">
+                  <span className="font-mono text-xs uppercase text-muted">{label}</span>
+                  <span className="flex-1 truncate text-xs text-subtle">{meaning}</span>
+                  <span className="font-mono text-xs tabular-nums">{formatMs(value as number)}</span>
+                </div>
+                {/* Scaled against the slowest request, so the bars show how
+                    far the tail runs past the typical case. */}
+                <Meter value={value as number} max={t.max_latency_ms || 1} />
+              </li>
+            ))}
+          </ul>
+          {t.requests < 100 && (
+            <p className="mt-4 text-[11px] text-subtle">
+              Over {formatNumber(t.requests)} request{t.requests === 1 ? "" : "s"}. Percentiles need
+              volume to describe a distribution: below a few hundred, the high ones are all pointing
+              at the same slow request.
+            </p>
+          )}
+        </Card>
+
         <Card title="Corpus and retrieval" subtitle="What the answers are grounded in" icon={<Database size={15} />}>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-4 text-sm">
             <Stat label="Documents" value={formatNumber(d.corpus.documents)} />
