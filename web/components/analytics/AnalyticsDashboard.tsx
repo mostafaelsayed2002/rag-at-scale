@@ -191,7 +191,15 @@ function Dashboard({ d }: { d: Analytics }) {
                         {s.samples >= 5 ? `p50 ${formatMs(s.p50_ms)} · p95 ${formatMs(s.p95_ms)}` : formatMs(s.p50_ms)}
                       </span>
                     </div>
-                    <Meter value={s.p50_ms} secondary={s.p95_ms} max={maxStage} />
+                    {/* The faded p95 bar only appears alongside the p95
+                        number and the legend that explains it. Below five
+                        samples none of the three is shown, since a percentile
+                        over four requests is just the slowest of them. */}
+                    <Meter
+                      value={s.p50_ms}
+                      secondary={s.samples >= 5 ? s.p95_ms : undefined}
+                      max={maxStage}
+                    />
                   </li>
                 ))}
               </ul>
