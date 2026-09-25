@@ -46,6 +46,12 @@ services:
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
       # Again the service name: redis answers to it inside the network.
       REDIS_URL: redis://redis:6379/0
+      # Tracing. Off unless the .env turns it on, since it sends every
+      # question and answer to a third party.
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-rag-at-scale}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
       DATA_DIR: /app/data
     volumes:
       # The corpus itself, so a citation can open the original PDF. Read-only:

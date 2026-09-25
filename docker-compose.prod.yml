@@ -67,6 +67,10 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@rag-postgres:5432/${POSTGRES_DB:-rag}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:?set GOOGLE_API_KEY in .env}
       REDIS_URL: redis://rag-redis:6379/0
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-rag-at-scale}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
       DATA_DIR: /app/data
     volumes:
       # The corpus PDFs, copied to the server with rsync rather than baked into
