@@ -8,9 +8,8 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
-
 from langsmith import traceable
+from pydantic import BaseModel
 
 from .analytics import overview
 from .cache import build_cache
