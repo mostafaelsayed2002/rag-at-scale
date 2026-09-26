@@ -9,7 +9,6 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from langsmith import traceable
-from pydantic import BaseModel
 
 from .analytics import overview
 from .cache import build_cache
@@ -17,28 +16,11 @@ from .config import settings
 from .db import pool
 from .embeddings import build_embedder, embed_query
 from .llm import Answer, answer_question, build_llm
-from .models import ChatRequest, ChatResponse
+from .models import ChatRequest, ChatResponse, Document, DocumentSummary
 from .monitoring import record_chat, setup_logging
 from .tracing import configure as configure_tracing
 
 logger = logging.getLogger(__name__)
-
-
-class DocumentSummary(BaseModel):
-    doc_id: str
-    title: str | None
-    collection: str | None
-    document_type: str | None
-    source_url: str | None
-    page_count: int | None
-    chunk_count: int | None
-
-
-class Document(DocumentSummary):
-    source_organization: str | None
-    celex_number: str | None
-    publication_date: str | None
-    has_file: bool
 
 
 def index_pdfs(data_dir: Path) -> dict[str, Path]:
