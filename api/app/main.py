@@ -79,8 +79,8 @@ async def lifespan(app: FastAPI):
     # import the pool itself.
     app.state.pool = pool
     app.state.pdfs = index_pdfs(settings.data_dir)
-    app.state.embedder = build_embedder() if settings.google_api_key else None
-    app.state.llm = build_llm() if settings.google_api_key else None
+    app.state.embedder = build_embedder()
+    app.state.llm = build_llm()
     app.state.cache = build_cache()
     # Shares the cache's connection: one client is enough, and a second pool
     # to the same Redis would buy nothing.
@@ -199,9 +199,6 @@ class Stopwatch:
 
 def embed(q: str) -> str:
     """The question as a pgvector literal, ready to compare against the corpus."""
-    if app.state.embedder is None:
-        raise HTTPException(status_code=503, detail="This needs GOOGLE_API_KEY")
-
     try:
         return embed_query(app.state.embedder, q)
     except Exception as exc:
@@ -272,9 +269,6 @@ async def chat(request: Request, body: ChatRequest):
     convenient — and it costs nothing, since a hit skips the embedding call,
     the search and the generation alike.
     """
-    if app.state.llm is None:
-        raise HTTPException(status_code=503, detail="Chat needs GOOGLE_API_KEY")
-
     started = time.perf_counter()
     clock = Stopwatch()
     # Recorded for the history: the question arrives in the body, which the

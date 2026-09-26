@@ -10,7 +10,6 @@ for one run without editing code:
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -24,11 +23,8 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # Either name works; LangChain itself looks for GOOGLE_API_KEY.
-    google_api_key: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("GOOGLE_API_KEY", "GEMINI_API_KEY"),
-    )
+    # Optional here: only the embedding step needs it, and it checks on first use.
+    google_api_key: str | None = None
 
     # Google's cheapest embedding model: $0.20 per million text tokens, with a
     # free tier. Reads up to 8,192 tokens per text.

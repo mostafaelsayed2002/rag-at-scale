@@ -8,8 +8,6 @@ from .config import settings
 
 def build_embedder() -> GoogleGenerativeAIEmbeddings:
     """Created once at startup; building it per request would add latency."""
-    if not settings.google_api_key:
-        raise RuntimeError("Set GOOGLE_API_KEY to embed search queries")
     return GoogleGenerativeAIEmbeddings(
         model=settings.embedding_model,
         output_dimensionality=settings.embedding_dim,

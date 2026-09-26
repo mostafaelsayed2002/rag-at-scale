@@ -65,8 +65,6 @@ class Answer(BaseModel):
 
 def build_llm() -> ChatGoogleGenerativeAI:
     """Built once at startup; constructing it per request would add latency."""
-    if not settings.google_api_key:
-        raise RuntimeError("Set GOOGLE_API_KEY to generate answers")
     extra = {}
     # Only sent when set: this model rejects thinking_budget=0 with a 400, so
     # "leave it alone" has to mean not sending the argument at all.

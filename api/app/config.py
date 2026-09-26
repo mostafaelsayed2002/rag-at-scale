@@ -3,7 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import AliasChoices, Field
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -24,10 +24,9 @@ class Settings(BaseSettings):
     # Queries must be embedded with the model the corpus used: vectors from two
     # different models are not comparable, and the distances would be
     # meaningless rather than obviously wrong.
-    google_api_key: str | None = Field(
-        default=None,
-        validation_alias=AliasChoices("GOOGLE_API_KEY", "GEMINI_API_KEY"),
-    )
+    # Required: chat is the main feature, so a missing key should stop the
+    # app at startup rather than surface on the first question.
+    google_api_key: str = Field(min_length=1)
     embedding_model: str = "models/gemini-embedding-2"
     embedding_dim: int = 768
 
