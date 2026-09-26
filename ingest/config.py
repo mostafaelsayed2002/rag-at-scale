@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # enabled on the project, or the corpus takes hours.
     embed_texts_per_minute: int = 90
 
-    database_url: str = "postgresql://rag:rag@localhost:5432/rag"
+    database_url: str
 
     data_dir: Path = ROOT / "data"
 

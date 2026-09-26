@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     app_env: str = "dev"
     log_level: str = "INFO"
 
-    database_url: str = "postgresql://rag:rag@localhost:5432/rag"
+    database_url: str
 
     google_api_key: str = Field(min_length=1)
 
@@ -55,7 +55,7 @@ class Settings(BaseSettings):
     usd_per_million_output_tokens: float = 2.5
 
     # Required: holds the answer cache and the analytics counters.
-    redis_url: str = "redis://localhost:6379/0"
+    redis_url: str
     # An hour. The corpus does not change between deployments, so this is a
     # limit on how long a stale answer could survive, not on correctness.
     cache_ttl: int = 3600
