@@ -1,13 +1,9 @@
-"""Structured logs, shared counters, and a durable record of every request.
+"""Logging and request metrics.
 
-Two stores, because they answer different questions. Redis holds the running
-counters: what is happening right now, incremented atomically so several
-workers agree on one number. Postgres holds one row per request: what has
-happened over time, which is the only way to get a percentile or a trend,
-since a counter has already thrown the individual measurements away.
+- Redis: live counters (totals, cache hits), shared by all workers.
+- Postgres: one row per request, for history, trends and percentiles.
 
-Neither is allowed to fail a request. Monitoring that can take the service
-down is worse than no monitoring.
+Monitoring never fails a request: errors are logged and ignored.
 """
 
 import json
@@ -24,40 +20,33 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
 
-# Same versioning idea as the cache: a new prefix starts the counts over
-# rather than mixing them with numbers that meant something else.
 PREFIX = "rag:v1:metrics"
 
 
 class JSONFormatter(logging.Formatter):
-    """One JSON object per line, so a log collector can read the fields.
-
-    Plain text logs have to be parsed with regular expressions to answer
-    "which requests were slow"; these can be queried directly.
-    """
+    """Writes each log line as JSON, so log tools can filter by field."""
 
     def format(self, record: logging.LogRecord) -> str:
-        payload = {
-            "timestamp": datetime.now(tz=timezone.utc).isoformat(),
-            "level": record.levelname,
-            "logger": record.name,
-            "message": record.getMessage(),
-            "module": record.module,
-            "function": record.funcName,
-        }
+
+        payload = dict(getattr(record, "extra_data", {}))
+        payload.update(
+            {
+                "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
+                "level": record.levelname,
+                "logger": record.name,
+                "message": record.getMessage(),
+                "module": record.module,
+                "function": record.funcName,
+            }
+        )
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
-        # Anything passed as logger.info(..., extra={"extra_data": {...}}).
-        payload.update(getattr(record, "extra_data", {}))
-        return json.dumps(payload)
+        return json.dumps(payload, default=str)
 
 
 def setup_logging(level: str = "INFO", as_json: bool = True) -> None:
-    """Configure the root logger once.
+    """Set up app-wide logging. Replaces old handlers, so lines never print twice."""
 
-    Handlers are replaced rather than appended: adding one on every call is
-    how a log line ends up printed twice, then three times.
-    """
     handler = logging.StreamHandler()
     handler.setFormatter(
         JSONFormatter() if as_json else logging.Formatter("%(levelname)-7s %(name)s: %(message)s")
@@ -68,11 +57,9 @@ def setup_logging(level: str = "INFO", as_json: bool = True) -> None:
 
 
 class Metrics:
-    """Counters in Redis, shared by every worker and every container.
+    """Request counters in Redis, shared by all workers.
 
-    The counting happens inside Redis, so `INCR` from two workers at the same
-    instant cannot lose one the way `self.total += 1` can. A dict in the
-    process would report only the requests that one worker happened to serve.
+    Redis counts safely even when two workers update at the same time.
     """
 
     FIELDS = (
@@ -92,10 +79,8 @@ class Metrics:
         latency_ms: float,
         *,
         error: bool = False,
-        # None means this endpoint never consults the cache, so the request
-        # is neither a hit nor a miss. Counting it as a miss would make the
-        # hit rate depend on how much unrelated traffic there was.
-        cache_hit: bool | None = None,
+        cache_hit: bool
+        | None = None,  # None = cache not used (e.g. /health), so it is left out of the hit rate.
         tokens_input: int = 0,
         tokens_output: int = 0,
     ) -> None:

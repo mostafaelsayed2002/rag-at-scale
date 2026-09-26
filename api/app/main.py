@@ -1,4 +1,4 @@
-"""Search the corpus, list its documents, and serve the PDFs behind citations."""
+"""Chat over the corpus, list its documents, and serve the PDFs behind citations."""
 
 import logging
 import time
@@ -39,18 +39,6 @@ class Document(DocumentSummary):
     celex_number: str | None
     publication_date: str | None
     has_file: bool
-
-
-class SearchHit(BaseModel):
-    chunk_id: int
-    doc_id: str
-    title: str | None
-    text: str
-    page_start: int
-    page_end: int
-    # 1 is identical, 0 is unrelated: cosine distance subtracted from one, so
-    # the number reads the way people expect a relevance score to.
-    score: float
 
 
 def index_pdfs(data_dir: Path) -> dict[str, Path]:
@@ -208,13 +196,13 @@ def embed(q: str) -> str:
             logger.warning("embedding quota exhausted: %s", message)
             raise HTTPException(
                 status_code=429,
-                detail="The embedding quota is used up, so search is unavailable right now.",
+                detail="The embedding quota is used up, so chat is unavailable right now.",
             ) from exc
         raise
 
 
 @traceable(run_type="retriever", name="retrieve")
-async def retrieve(vector: str, k: int, collection: str | None = None) -> list[dict]:
+async def retrieve(vector: str, k: int) -> list[dict]:
     """The k passages closest to the query vector.
 
     Traced as a retriever so a trace shows which passages an answer was built
@@ -229,34 +217,12 @@ async def retrieve(vector: str, k: int, collection: str | None = None) -> list[d
             FROM chunks c
             JOIN documents d USING (doc_id)
             WHERE c.embedding IS NOT NULL
-              AND (%s::text IS NULL OR d.collection = %s)
             ORDER BY c.embedding <=> %s::vector
             LIMIT %s
             """,
-            (vector, collection, collection, vector, k),
+            (vector, vector, k),
         )
         return await cur.fetchall()
-
-
-@app.get("/search", response_model=list[SearchHit])
-async def search(
-    request: Request,
-    q: str = Query(min_length=1, description="what to search for"),
-    k: int = Query(default=10, ge=1, le=50, description="how many results"),
-    collection: str | None = Query(default=None, description="restrict to one collection"),
-):
-    """The passages themselves, without an answer written over them."""
-    clock = Stopwatch()
-    with clock("embedding"):
-        vector = embed(q)
-    with clock("retrieval"):
-        hits = await retrieve(vector, k, collection)
-
-    # Left for the metrics middleware, which runs after this and cannot see
-    # what happened inside the endpoint. Search has no cache of its own: the
-    # cache holds answers, and search does not produce one.
-    request.state.stages = clock.stages
-    return hits
 
 
 @app.post("/chat", response_model=ChatResponse)

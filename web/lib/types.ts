@@ -1,7 +1,7 @@
 /**
  * The contract between the frontend and the API.
  *
- * Everything here is live: documents, the PDFs behind them, search, answers
+ * Everything here is live: documents, the PDFs behind them, answers
  * and metrics. Nothing on this page is generated locally.
  */
 
@@ -66,17 +66,6 @@ export type DocumentDetail = DocumentSummary & {
   celex_number: string | null;
   publication_date: string | null;
   has_file: boolean;
-};
-
-/** GET /search */
-export type SearchHit = {
-  chunk_id: number;
-  doc_id: string;
-  title: string | null;
-  text: string;
-  page_start: number;
-  page_end: number;
-  score: number;
 };
 
 /** Events emitted while an answer is produced. */

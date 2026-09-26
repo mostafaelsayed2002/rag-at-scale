@@ -6,7 +6,6 @@ import type {
   DocumentDetail,
   DocumentSummary,
   Message,
-  SearchHit,
 } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -40,12 +39,6 @@ export function getDocument(docId: string): Promise<DocumentDetail> {
 /** The PDF itself. Given straight to the viewer, which fetches it by range. */
 export function documentFileUrl(docId: string): string {
   return `${API_URL}/documents/${encodeURIComponent(docId)}/file`;
-}
-
-/** GET /search */
-export function search(q: string, k = 8): Promise<SearchHit[]> {
-  const params = new URLSearchParams({ q, k: String(k) });
-  return getJson(`/search?${params}`);
 }
 
 /** The API's citation shape, mapped to the one the viewer works in. */
