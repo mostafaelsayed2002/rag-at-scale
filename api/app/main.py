@@ -5,7 +5,7 @@ import time
 from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from langsmith import traceable
@@ -18,7 +18,7 @@ from .db import pool
 from .embeddings import build_embedder, embed_query
 from .llm import Answer, answer_question, build_llm
 from .models import ChatRequest, ChatResponse, MatricsResponse
-from .monitoring import Metrics, MetricsMiddleware, setup_logging
+from .monitoring import Metrics, record_chat, setup_logging
 from .tracing import configure as configure_tracing
 
 logger = logging.getLogger(__name__)
@@ -63,9 +63,6 @@ async def lifespan(app: FastAPI):
     # constructed, so configuring afterwards would trace nothing.
     configure_tracing()
     await pool.open()
-    # The middleware reaches the database through this, so it does not have to
-    # import the pool itself.
-    app.state.pool = pool
     app.state.pdfs = index_pdfs(settings.data_dir)
     app.state.embedder = build_embedder()
     app.state.llm = build_llm()
@@ -79,12 +76,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="RAG at Scale", lifespan=lifespan)
-
-# The last middleware added is the outermost, so CORS below wraps this one.
-# That is the order we want: CORS headers are attached even to responses this
-# one counted as errors, and browser preflights are answered without being
-# measured as traffic.
-app.add_middleware(MetricsMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -226,65 +217,73 @@ async def retrieve(vector: str, k: int) -> list[dict]:
 
 
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: Request, body: ChatRequest):
+async def chat(body: ChatRequest):
     """Retrieve passages, then have the model write an answer that cites them.
 
-    One cache check comes first. At temperature zero the same question gives
-    the same answer, so serving the stored one is honest rather than merely
-    convenient — and it costs nothing, since a hit skips the embedding call,
-    the search and the generation alike.
+    The cache is checked first: at temperature zero the same question gives
+    the same answer, and a hit skips embedding, retrieval and generation.
     """
     started = time.perf_counter()
     clock = Stopwatch()
-    # Recorded for the history: the question arrives in the body, which the
-    # middleware cannot read.
-    request.state.query = body.query
+    # Measured below, in finally, so a failed request is recorded too.
+    status = 500
+    cache_hit = False
+    tokens_input = tokens_output = 0
 
-    # The model and k belong in the key: change either and the stored answer
-    # is no longer the answer this configuration would produce.
-    fingerprint = f"{settings.llm_model}:{settings.retrieve_k}:{body.query}"
-    stored = await app.state.cache.get(fingerprint)
-    request.state.cache_hit = stored is not None
+    try:
+        # The model and k belong in the key: change either and the stored
+        # answer is no longer the one this configuration would produce.
+        fingerprint = f"{settings.llm_model}:{settings.retrieve_k}:{body.query}"
+        stored = await app.state.cache.get(fingerprint)
+        cache_hit = stored is not None
 
-    if stored is not None:
-        answer = Answer.model_validate_json(stored)
-    else:
-        with clock("embedding"):
-            vector = embed(body.query)
-        with clock("retrieval"):
-            chunks = await retrieve(vector, settings.retrieve_k)
-        try:
-            with clock("generation"):
-                answer = await answer_question(app.state.llm, body.query, chunks)
-        except Exception as exc:
-            message = str(exc)
-            if "RESOURCE_EXHAUSTED" in message or "429" in message:
-                logger.warning("generation quota exhausted: %s", message)
-                raise HTTPException(
-                    status_code=429,
-                    detail="The model quota is used up, so answering is unavailable right now.",
-                ) from exc
-            raise
-        await app.state.cache.set(fingerprint, answer.model_dump_json())
+        if stored is not None:
+            answer = Answer.model_validate_json(stored)
+        else:
+            with clock("embedding"):
+                vector = embed(body.query)
+            with clock("retrieval"):
+                chunks = await retrieve(vector, settings.retrieve_k)
+            try:
+                with clock("generation"):
+                    answer = await answer_question(app.state.llm, body.query, chunks)
+            except Exception as exc:
+                message = str(exc)
+                if "RESOURCE_EXHAUSTED" in message or "429" in message:
+                    logger.warning("generation quota exhausted: %s", message)
+                    raise HTTPException(
+                        status_code=429,
+                        detail="The model quota is used up, so answering is unavailable right now.",
+                    ) from exc
+                raise
+            await app.state.cache.set(fingerprint, answer.model_dump_json())
+            # Only a generated answer spent tokens; a cached one cost nothing.
+            tokens_input, tokens_output = answer.tokens_input, answer.tokens_output
 
-    request.state.stages = clock.stages
-
-    # Read by the metrics middleware. Only a generated answer spent tokens:
-    # a cached one is replayed from Redis and calls nothing, so counting its
-    # stored numbers again would bill the same generation twice. The response
-    # below still reports them, because they are what that answer cost.
-    if stored is None:
-        request.state.tokens_input = answer.tokens_input
-        request.state.tokens_output = answer.tokens_output
-
-    return ChatResponse(
-        response=answer.text,
-        citations=answer.citations,
-        thread_id=body.thread_id,
-        model_used=settings.llm_model,
-        cached=stored is not None,
-        retrieved_chunks=answer.retrieved,
-        tokens_input=answer.tokens_input,
-        tokens_output=answer.tokens_output,
-        processing_time=round(time.perf_counter() - started, 3),
-    )
+        status = 200
+        return ChatResponse(
+            response=answer.text,
+            citations=answer.citations,
+            thread_id=body.thread_id,
+            model_used=settings.llm_model,
+            cached=cache_hit,
+            retrieved_chunks=answer.retrieved,
+            tokens_input=answer.tokens_input,
+            tokens_output=answer.tokens_output,
+            processing_time=round(time.perf_counter() - started, 3),
+        )
+    except HTTPException as exc:
+        status = exc.status_code
+        raise
+    finally:
+        await record_chat(
+            app.state.metrics,
+            pool,
+            query=body.query,
+            latency_ms=(time.perf_counter() - started) * 1000,
+            status=status,
+            cache_hit=cache_hit,
+            tokens_input=tokens_input,
+            tokens_output=tokens_output,
+            stages=clock.stages,
+        )

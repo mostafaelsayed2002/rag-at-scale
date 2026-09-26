@@ -46,7 +46,7 @@ SERIES_SQL = """
     ORDER BY hour
 """
 
-# Stage timings live in a JSONB column because a search has no generation step.
+# Stage timings live in JSONB: a cache hit has no stages at all.
 STAGES_SQL = """
     SELECT key                                                        AS stage,
            count(*)                                                   AS samples,
@@ -71,8 +71,7 @@ CORPUS_SQL = """
 SLOWEST_SQL = """
     SELECT query, round(latency_ms) AS latency_ms, created_at, cache_hit
     FROM request_log
-    WHERE query IS NOT NULL
-      AND created_at >= now() - make_interval(hours => %s)
+    WHERE created_at >= now() - make_interval(hours => %s)
     ORDER BY latency_ms DESC
     LIMIT 5
 """
@@ -94,8 +93,7 @@ CACHE_SQL = """
     SELECT count(*) FILTER (WHERE cache_hit) AS hits,
            count(*)                          AS lookups
     FROM request_log
-    WHERE path = '/chat'
-      AND created_at >= now() - make_interval(hours => %s)
+    WHERE created_at >= now() - make_interval(hours => %s)
 """
 
 
@@ -153,9 +151,7 @@ async def overview(pool, hours: int = 24) -> dict:
             }
             for row in stages
         ],
-        # Counted from the history, not from Redis counters, so it covers the
-        # same window as everything else on the page. Only /chat consults the
-        # cache, so only /chat belongs in the denominator.
+        # Counted from the history, so it covers the same window as the rest.
         "cache": {
             "hits": cache["hits"],
             "lookups": cache["lookups"],

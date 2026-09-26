@@ -1,25 +1,23 @@
-"""Logging and request metrics.
+"""Logging and chat metrics.
 
 - Redis: live counters (totals, cache hits), shared by all workers.
-- Postgres: one row per request, for history, trends and percentiles.
+- Postgres: one row per chat request, for history, trends and percentiles.
 
 Monitoring never fails a request: errors are logged and ignored.
 """
 
 import json
 import logging
-import time
 from datetime import datetime, timezone
 
-from fastapi import Request
 from psycopg import Error as PsycopgError
 from psycopg.types.json import Jsonb
 from redis.asyncio import Redis
 from redis.exceptions import RedisError
-from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
 
+# v2: counters cover /chat only.
 PREFIX = "rag:v1:metrics"
 
 
@@ -57,7 +55,7 @@ def setup_logging(level: str = "INFO", as_json: bool = True) -> None:
 
 
 class Metrics:
-    """Request counters in Redis, shared by all workers.
+    """Chat counters in Redis, shared by all workers.
 
     Redis counts safely even when two workers update at the same time.
     """
@@ -79,8 +77,7 @@ class Metrics:
         latency_ms: float,
         *,
         error: bool = False,
-        cache_hit: bool
-        | None = None,  # None = cache not used (e.g. /health), so it is left out of the hit rate.
+        cache_hit: bool = False,
         tokens_input: int = 0,
         tokens_output: int = 0,
     ) -> None:
@@ -90,8 +87,7 @@ class Metrics:
             pipe = self.client.pipeline()
             pipe.incr(f"{PREFIX}:requests_total")
             pipe.incrbyfloat(f"{PREFIX}:latency_sum", latency_ms)
-            if cache_hit is not None:
-                pipe.incr(f"{PREFIX}:cache_hits" if cache_hit else f"{PREFIX}:cache_misses")
+            pipe.incr(f"{PREFIX}:cache_hits" if cache_hit else f"{PREFIX}:cache_misses")
             if error:
                 pipe.incr(f"{PREFIX}:errors_total")
             if tokens_input:
@@ -138,77 +134,48 @@ async def log_request(pool, **row) -> None:
             await conn.execute(
                 """
                 INSERT INTO request_log
-                    (path, query, status_code, latency_ms, cache_hit,
+                    (query, status_code, latency_ms, cache_hit,
                      tokens_input, tokens_output, error, stages)
-                VALUES (%(path)s, %(query)s, %(status_code)s, %(latency_ms)s,
+                VALUES (%(query)s, %(status_code)s, %(latency_ms)s,
                         %(cache_hit)s, %(tokens_input)s, %(tokens_output)s,
                         %(error)s, %(stages)s)
                 """,
                 row,
             )
     except PsycopgError as exc:
-        # A full disk or a missing migration must not turn a working search
-        # into a 500. The counters in Redis still have the request.
+        # A full disk or a missing migration must not fail a working chat.
         logger.warning("could not write request_log: %s", exc)
 
 
-class MetricsMiddleware(BaseHTTPMiddleware):
-    """Time every request, not just the ones that call a model.
-
-    Middleware sees the whole request, so latency here is what the user
-    actually waited, including the database and serialisation.
-    """
-
-    # Measuring the metrics endpoints with themselves makes the numbers report
-    # on the act of reading them: refreshing the dashboard would raise the
-    # request count and add itself to the slowest queries. Health checks are
-    # skipped for the same reason, since Docker calls one every five seconds.
-    SKIP = {"/metrics", "/analytics", "/health", "/docs", "/openapi.json"}
-
-    async def dispatch(self, request: Request, call_next):
-        if request.url.path in self.SKIP:
-            return await call_next(request)
-
-        started = time.perf_counter()
-        status = 500
-        try:
-            response = await call_next(request)
-            status = response.status_code
-            return response
-        finally:
-            elapsed = (time.perf_counter() - started) * 1000
-            # Endpoints set these; a request that failed before reaching one
-            # simply has the defaults.
-            state = request.state
-            cache_hit = getattr(state, "cache_hit", None)
-            tokens_input = getattr(state, "tokens_input", 0)
-            tokens_output = getattr(state, "tokens_output", 0)
-            # {"embedding": 41.2, "retrieval": 8.9, "generation": 31980.0} —
-            # where the time went, so a slow answer says which part to fix.
-            stages = getattr(state, "stages", None)
-
-            app = request.app
-            await app.state.metrics.record(
-                elapsed,
-                error=status >= 400,
-                cache_hit=cache_hit,
-                tokens_input=tokens_input,
-                tokens_output=tokens_output,
-            )
-            await log_request(
-                app.state.pool,
-                path=request.url.path,
-                # Chat sends its question in the body, which the middleware
-                # cannot read without consuming the stream, so the endpoint
-                # leaves it on the state instead.
-                query=getattr(state, "query", None) or request.query_params.get("q"),
-                status_code=status,
-                latency_ms=round(elapsed, 2),
-                # The column is NOT NULL: "never looked" and "looked and
-                # missed" are both false as far as the history is concerned.
-                cache_hit=bool(cache_hit),
-                tokens_input=tokens_input,
-                tokens_output=tokens_output,
-                error=None if status < 400 else f"HTTP {status}",
-                stages=Jsonb(stages) if stages else None,
-            )
+async def record_chat(
+    metrics: Metrics,
+    pool,
+    *,
+    query: str,
+    latency_ms: float,
+    status: int,
+    cache_hit: bool,
+    tokens_input: int,
+    tokens_output: int,
+    stages: dict[str, float],
+) -> None:
+    """Record one chat request: Redis counters and a request_log row."""
+    await metrics.record(
+        latency_ms,
+        error=status >= 400,
+        cache_hit=cache_hit,
+        tokens_input=tokens_input,
+        tokens_output=tokens_output,
+    )
+    await log_request(
+        pool,
+        query=query,
+        status_code=status,
+        latency_ms=round(latency_ms, 2),
+        cache_hit=cache_hit,
+        tokens_input=tokens_input,
+        tokens_output=tokens_output,
+        error=None if status < 400 else f"HTTP {status}",
+        # e.g. {"embedding": 41.2, "retrieval": 8.9, "generation": 1980.0}
+        stages=Jsonb(stages) if stages else None,
+    )

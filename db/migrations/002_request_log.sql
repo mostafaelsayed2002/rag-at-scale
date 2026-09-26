@@ -1,4 +1,4 @@
--- One row per API request: the history behind the analytics page.
+-- One row per chat request: the history behind the analytics page.
 --
 -- Redis holds the running counters, which answer "how are we doing now".
 -- They cannot answer "what was the 95th percentile last Tuesday", because a
@@ -7,9 +7,7 @@
 CREATE TABLE IF NOT EXISTS request_log (
     id BIGSERIAL PRIMARY KEY,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    path TEXT NOT NULL,
-    -- The search text, when there was one. Null for endpoints without a query.
-    query TEXT,
+    query TEXT NOT NULL,
     status_code INTEGER NOT NULL,
     latency_ms DOUBLE PRECISION NOT NULL,
     cache_hit BOOLEAN NOT NULL DEFAULT false,
