@@ -17,8 +17,8 @@ from .config import settings
 from .db import pool
 from .embeddings import build_embedder, embed_query
 from .llm import Answer, answer_question, build_llm
-from .models import ChatRequest, ChatResponse, MatricsResponse
-from .monitoring import Metrics, record_chat, setup_logging
+from .models import ChatRequest, ChatResponse
+from .monitoring import record_chat, setup_logging
 from .tracing import configure as configure_tracing
 
 logger = logging.getLogger(__name__)
@@ -67,9 +67,6 @@ async def lifespan(app: FastAPI):
     app.state.embedder = build_embedder()
     app.state.llm = build_llm()
     app.state.cache = build_cache()
-    # Shares the cache's connection: one client is enough, and a second pool
-    # to the same Redis would buy nothing.
-    app.state.metrics = Metrics(app.state.cache.client)
     yield
     await pool.close()
     await app.state.cache.client.aclose()
@@ -88,12 +85,6 @@ app.add_middleware(
 @app.get("/health")
 async def health():
     return {"status": "ok"}
-
-
-@app.get("/metrics", response_model=MatricsResponse)
-async def metrics():
-    """Live counters, shared by every worker through Redis."""
-    return await app.state.metrics.summary()
 
 
 @app.get("/analytics")
@@ -277,7 +268,6 @@ async def chat(body: ChatRequest):
         raise
     finally:
         await record_chat(
-            app.state.metrics,
             pool,
             query=body.query,
             latency_ms=(time.perf_counter() - started) * 1000,

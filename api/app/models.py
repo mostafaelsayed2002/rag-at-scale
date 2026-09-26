@@ -62,18 +62,6 @@ class HealthResponse(BaseModel):
     checks: dict = {}
 
 
-class MatricsResponse(BaseModel):
-    """Response model for metrics endpoint."""
-
-    total_requests: int
-    total_errors: int
-    error_rate: float
-    avg_latency_ms: float
-    cache_hit_rate: float
-    total_input_tokens: int
-    total_output_tokens: int
-
-
 class ErrorResponse(BaseModel):
     """Response model for error responses."""
 
