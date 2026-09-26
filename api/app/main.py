@@ -87,8 +87,7 @@ async def lifespan(app: FastAPI):
     app.state.metrics = Metrics(app.state.cache.client)
     yield
     await pool.close()
-    if app.state.cache.client is not None:
-        await app.state.cache.client.aclose()
+    await app.state.cache.client.aclose()
 
 
 app = FastAPI(title="RAG at Scale", lifespan=lifespan)

@@ -32,7 +32,7 @@ VERSION = "v1"
 class Cache:
     """Question in, answer out, with a time to live on every entry."""
 
-    def __init__(self, client: Redis | None, ttl: int = 3600):
+    def __init__(self, client: Redis, ttl: int = 3600):
         self.client = client
         self.ttl = ttl
         # Reported by /metrics; also the honest way to tell whether the cache
@@ -45,8 +45,6 @@ class Cache:
         return f"rag:{VERSION}:answer:{hashlib.sha256(question.encode()).hexdigest()}"
 
     async def get(self, question: str) -> str | None:
-        if self.client is None:
-            return None
         try:
             found = await self.client.get(self._key(question))
         except RedisError as exc:
@@ -59,8 +57,6 @@ class Cache:
         return found
 
     async def set(self, question: str, answer: str) -> None:
-        if self.client is None:
-            return
         try:
             # ex is the expiry in seconds, applied by Redis itself: the entry
             # disappears on its own, so nothing has to sweep up after it.
@@ -75,9 +71,6 @@ def build_cache() -> Cache:
     decode_responses returns str instead of bytes, which keeps callers from
     having to decode every value they read back.
     """
-    if not settings.redis_url:
-        logger.info("no REDIS_URL set; running without a cache")
-        return Cache(None)
     client = Redis.from_url(settings.redis_url, decode_responses=True)
     logger.info("answer cache enabled, entries live for %ds", settings.cache_ttl)
     return Cache(client, ttl=settings.cache_ttl)

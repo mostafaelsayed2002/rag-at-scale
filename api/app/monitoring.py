@@ -84,7 +84,7 @@ class Metrics:
         "tokens_output",
     )
 
-    def __init__(self, client: Redis | None):
+    def __init__(self, client: Redis):
         self.client = client
 
     async def record(
@@ -99,8 +99,6 @@ class Metrics:
         tokens_input: int = 0,
         tokens_output: int = 0,
     ) -> None:
-        if self.client is None:
-            return
         try:
             # A pipeline sends every increment in one round trip instead of
             # six, so measuring a request costs about as much as one command.
@@ -124,14 +122,13 @@ class Metrics:
         values = dict.fromkeys(self.FIELDS, 0)
         latency_sum = 0.0
 
-        if self.client is not None:
-            try:
-                keys = [f"{PREFIX}:{name}" for name in self.FIELDS]
-                raw = await self.client.mget([*keys, f"{PREFIX}:latency_sum"])
-                values = {name: int(raw[i] or 0) for i, name in enumerate(self.FIELDS)}
-                latency_sum = float(raw[-1] or 0.0)
-            except RedisError as exc:
-                logger.warning("could not read metrics: %s", exc)
+        try:
+            keys = [f"{PREFIX}:{name}" for name in self.FIELDS]
+            raw = await self.client.mget([*keys, f"{PREFIX}:latency_sum"])
+            values = {name: int(raw[i] or 0) for i, name in enumerate(self.FIELDS)}
+            latency_sum = float(raw[-1] or 0.0)
+        except RedisError as exc:
+            logger.warning("could not read metrics: %s", exc)
 
         requests = values["requests_total"]
         lookups = values["cache_hits"] + values["cache_misses"]

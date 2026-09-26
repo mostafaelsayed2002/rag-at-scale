@@ -21,29 +21,22 @@ class Settings(BaseSettings):
 
     database_url: str = "postgresql://rag:rag@localhost:5432/rag"
 
-    # Queries must be embedded with the model the corpus used: vectors from two
-    # different models are not comparable, and the distances would be
-    # meaningless rather than obviously wrong.
-    # Required: chat is the main feature, so a missing key should stop the
-    # app at startup rather than surface on the first question.
     google_api_key: str = Field(min_length=1)
+
+    # Must match the model the corpus was embedded with.
     embedding_model: str = "models/gemini-embedding-2"
     embedding_dim: int = 768
 
-    # The answer is written from the retrieved passages, not from what the
-    # model remembers, so the cheapest tier is the right default. Kept as a
-    # setting so a better model is one line, not a code change.
+    # Cheapest tier is enough: answers come from the retrieved passages.
     llm_model: str = "gemini-3.5-flash-lite"
-    # Zero, so the same question gives the same answer. That is what makes a
-    # cached answer honest rather than merely similar to a fresh one.
+
+    # Zero, so the same question gives the same (cacheable) answer.
     llm_temperature: float = 0.0
-    # Tokens the model may spend reasoning before it answers. None leaves the
-    # model's own default alone, which is what we use: this model rejects a
-    # budget of 0 outright, and a measured budget of 128 was slower than the
-    # default rather than faster.
+
+    # None keeps the model default: 0 is rejected, 128 was slower.
     llm_thinking_budget: int | None = None
-    # Passages sent to the model. More context is not better: it costs tokens
-    # and buries the relevant passage among near misses.
+
+    # Passages sent to the model. More costs tokens and adds noise.
     retrieve_k: int = 6
 
     # LangSmith tracing. Off unless explicitly turned on: it sends every
@@ -57,11 +50,11 @@ class Settings(BaseSettings):
     # Published prices, used to turn real token counts into a cost estimate.
     # Settings rather than constants: a price is not something code can
     # measure, and anything shown from these is labelled an estimate.
-    usd_per_million_input_tokens: float = 0.10
-    usd_per_million_output_tokens: float = 0.40
+    # https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-flash-lite
+    usd_per_million_input_tokens: float = 0.3
+    usd_per_million_output_tokens: float = 2.5
 
-    # Shared cache. Empty disables it, so the API still runs with no Redis
-    # around, just paying for every repeated query.
+    # Required: holds the answer cache and the analytics counters.
     redis_url: str = "redis://localhost:6379/0"
     # An hour. The corpus does not change between deployments, so this is a
     # limit on how long a stale answer could survive, not on correctness.
