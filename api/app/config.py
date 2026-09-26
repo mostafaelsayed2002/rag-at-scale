@@ -16,56 +16,43 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    app_env: str = "dev"
+    # --- App ---
+    app_env: str = "dev"  # "production" switches logs to JSON
     log_level: str = "INFO"
 
+    # --- Storage ---
     database_url: str
+    redis_url: str
+    cache_ttl: int = 3600
+    data_dir: Path = ROOT / "data"
 
+    # --- Gemini ---
     google_api_key: str = Field(min_length=1)
-
     # Must match the model the corpus was embedded with.
     embedding_model: str = "models/gemini-embedding-2"
     embedding_dim: int = 768
-
     # Cheapest tier is enough: answers come from the retrieved passages.
     llm_model: str = "gemini-3.5-flash-lite"
-
-    # Zero, so the same question gives the same (cacheable) answer.
-    llm_temperature: float = 0.0
-
+    llm_temperature: float = 0.0  # same question, same (cacheable) answer
     # None keeps the model default: 0 is rejected, 128 was slower.
     llm_thinking_budget: int | None = None
 
-    # Passages sent to the model. More costs tokens and adds noise.
-    retrieve_k: int = 6
+    # --- Retrieval ---
+    retrieve_k: int = 6  # passages sent to the model; more adds cost and noise
 
-    # LangSmith tracing. Off unless explicitly turned on: it sends every
-    # question and every answer to a third party, which should be a decision
-    # rather than something that happens because a key is present.
+    # --- Cost estimate (USD per 1M tokens) ---
+    # https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-flash-lite
+    usd_per_million_input_tokens: float = 0.3
+    usd_per_million_output_tokens: float = 2.5
+
+    # --- LangSmith tracing (off by default: sends data to a third party) ---
     langsmith_tracing: bool = False
     langsmith_api_key: str | None = None
     langsmith_project: str = "rag-at-scale"
     langsmith_endpoint: str = "https://api.smith.langchain.com"
 
-    # Published prices, used to turn real token counts into a cost estimate.
-    # Settings rather than constants: a price is not something code can
-    # measure, and anything shown from these is labelled an estimate.
-    # https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-flash-lite
-    usd_per_million_input_tokens: float = 0.3
-    usd_per_million_output_tokens: float = 2.5
-
-    # Required: holds the answer cache and the analytics counters.
-    redis_url: str
-    # An hour. The corpus does not change between deployments, so this is a
-    # limit on how long a stale answer could survive, not on correctness.
-    cache_ttl: int = 3600
-
-    # Where the corpus PDFs live, so the API can serve the file a citation
-    # points at. Mounted read-only into the container.
-    data_dir: Path = ROOT / "data"
-
-    # The dev frontend (`npm run dev`). In production the frontend is
-    # same-origin behind nginx, so this does not apply.
+    # --- Web ---
+    # Dev frontend only; in production it is same-origin behind nginx.
     cors_origins: list[str] = ["http://localhost:3000"]
 
     @property
