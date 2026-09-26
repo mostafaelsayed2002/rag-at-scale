@@ -64,9 +64,9 @@ class Settings(BaseSettings):
     # points at. Mounted read-only into the container.
     data_dir: Path = ROOT / "data"
 
-    # 3000 is `npm run dev`, 3100 the preview server used while developing.
-    # In production the frontend is same-origin behind nginx, so none apply.
-    cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3100"]
+    # The dev frontend (`npm run dev`). In production the frontend is
+    # same-origin behind nginx, so this does not apply.
+    cors_origins: list[str] = ["http://localhost:3000"]
 
     @property
     def is_production(self) -> bool:
