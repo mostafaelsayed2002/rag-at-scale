@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     langsmith_project: str = "rag-at-scale"
     langsmith_endpoint: str = "https://api.smith.langchain.com"
 
+    # --- Rate limiting (per client IP, on /chat) ---
+    rate_limit: str = "10/minute"
+
     # --- Web ---
     # Dev frontend only; in production it is same-origin behind nginx.
     cors_origins: list[str] = ["http://localhost:3000"]

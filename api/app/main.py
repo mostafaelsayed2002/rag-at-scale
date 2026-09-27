@@ -18,6 +18,7 @@ from .api.routes import analytics, chat, documents, health
 from .core.config import settings
 from .core.errors import register_error_handlers
 from .core.logging import setup_logging
+from .core.rate_limit import limiter
 from .core.tracing import configure as configure_tracing
 from .db.pool import pool
 from .rag.embedder import build_embedder
@@ -43,6 +44,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="RAG at Scale", lifespan=lifespan)
+app.state.limiter = limiter  # slowapi looks for it here
 
 app.add_middleware(
     CORSMiddleware,

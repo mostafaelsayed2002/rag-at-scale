@@ -1,9 +1,10 @@
 import time
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 
 from ...core.config import settings
 from ...core.errors import QuotaExhausted
+from ...core.rate_limit import limiter
 from ...db.pool import pool
 from ...rag.pipeline import ChatRun
 from ...schemas.chat import ChatRequest, ChatResponse
@@ -14,7 +15,9 @@ router = APIRouter(tags=["chat"])
 
 
 @router.post("/chat", response_model=ChatResponse)
-async def chat(body: ChatRequest, pipeline: Pipeline):
+@limiter.limit(settings.rate_limit)
+# `request` is unused here but required: slowapi reads the client IP from it.
+async def chat(request: Request, body: ChatRequest, pipeline: Pipeline):
     """Answer a question with citations: cache → embed → retrieve → generate.
 
     A cache hit returns the stored answer and skips the other steps.

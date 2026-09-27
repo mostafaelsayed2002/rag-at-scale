@@ -15,6 +15,7 @@ dependencies = [
     # Shared response and embedding cache. The client speaks asyncio natively,
     # which the endpoints need.
     "redis>=5.2.1",
+    "slowapi>=0.1.10",
     "uvicorn[standard]>=0.52.4",
 ]
 
