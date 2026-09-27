@@ -161,6 +161,21 @@ def embed(q: str) -> str:
         raise
 
 
+async def generate(query: str, chunks: list[dict]) -> Answer:
+    """The cited answer, with an exhausted model quota reported as 429."""
+    try:
+        return await answer_question(app.state.llm, query, chunks)
+    except Exception as exc:
+        message = str(exc)
+        if "RESOURCE_EXHAUSTED" in message or "429" in message:
+            logger.warning("generation quota exhausted: %s", message)
+            raise HTTPException(
+                status_code=429,
+                detail="The model quota is used up, so answering is unavailable right now.",
+            ) from exc
+        raise
+
+
 @traceable(run_type="retriever", name="retrieve")
 async def retrieve(vector: str, k: int) -> list[dict]:
     """The k passages closest to the query vector.
@@ -187,10 +202,9 @@ async def retrieve(vector: str, k: int) -> list[dict]:
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(body: ChatRequest):
-    """Retrieve passages, then have the model write an answer that cites them.
+    """Answer a question with citations: cache → embed → retrieve → generate.
 
-    The cache is checked first: at temperature zero the same question gives
-    the same answer, and a hit skips embedding, retrieval and generation.
+    A cache hit returns the stored answer and skips the other steps.
     """
     started = time.perf_counter()
     clock = Stopwatch()
@@ -213,18 +227,8 @@ async def chat(body: ChatRequest):
                 vector = embed(body.query)
             with clock("retrieval"):
                 chunks = await retrieve(vector, settings.retrieve_k)
-            try:
-                with clock("generation"):
-                    answer = await answer_question(app.state.llm, body.query, chunks)
-            except Exception as exc:
-                message = str(exc)
-                if "RESOURCE_EXHAUSTED" in message or "429" in message:
-                    logger.warning("generation quota exhausted: %s", message)
-                    raise HTTPException(
-                        status_code=429,
-                        detail="The model quota is used up, so answering is unavailable right now.",
-                    ) from exc
-                raise
+            with clock("generation"):
+                answer = await generate(body.query, chunks)
             await app.state.cache.set(fingerprint, answer.model_dump_json())
             # Only a generated answer spent tokens; a cached one cost nothing.
             tokens_input, tokens_output = answer.tokens_input, answer.tokens_output
