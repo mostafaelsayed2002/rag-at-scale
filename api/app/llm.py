@@ -1,13 +1,8 @@
-"""Write an answer from retrieved passages, and tie each claim to its source.
+"""Write a cited answer using only the retrieved passages.
 
-The model is not asked to know EU law. The passages carry the knowledge; the
-model's job is to put them into a sentence and say which one it used. That is
-why the cheapest tier is enough, and why the prompt below spends most of its
-words forbidding the model from answering out of memory.
-
-An ungrounded answer is the worst failure this system can have: a confident
-citation to an article that does not say what the answer claims. "The sources
-do not cover this" is a correct answer, and the prompt says so explicitly.
+The passages hold the knowledge; the model only phrases it and cites sources,
+so the cheapest model is enough. Answering from memory is the worst failure,
+so "the sources do not cover this" is a valid answer.
 """
 
 import logging
@@ -54,20 +49,21 @@ class Citation(BaseModel):
 
 
 class Answer(BaseModel):
+    """A generated answer. This is what the cache stores."""
+
     text: str
     citations: list[Citation]
     tokens_input: int
     tokens_output: int
-    # Passages put in front of the model, which is more than the number cited:
-    # the difference is how much of the retrieval the answer actually used.
+    # Passages given to the model (usually more than were cited). Stored here
+    # so a cached answer can still report it.
     retrieved: int = 0
 
 
 def build_llm() -> ChatGoogleGenerativeAI:
-    """Built once at startup; constructing it per request would add latency."""
+    """Create the Gemini chat client. Built once at startup and reused."""
     extra = {}
-    # Only sent when set: this model rejects thinking_budget=0 with a 400, so
-    # "leave it alone" has to mean not sending the argument at all.
+    # Only sent when set: this model rejects thinking_budget=0.
     if settings.llm_thinking_budget is not None:
         extra["thinking_budget"] = settings.llm_thinking_budget
     return ChatGoogleGenerativeAI(
@@ -79,10 +75,9 @@ def build_llm() -> ChatGoogleGenerativeAI:
 
 
 def format_sources(chunks: list[dict]) -> str:
-    """Number the passages so the model has something to cite.
+    """Number the passages so the model can cite them.
 
-    The title and page travel with each one because the model writes better
-    attributions when it can see what it is citing.
+    Example: "[1] GDPR (page 17)\n<passage text>"
     """
     blocks = []
     for n, chunk in enumerate(chunks, start=1):
@@ -97,7 +92,10 @@ def format_sources(chunks: list[dict]) -> str:
 
 
 def cited_numbers(text: str) -> list[int]:
-    """Every source number the answer refers to, in order of first appearance."""
+    """Source numbers cited in the answer, without duplicates, in first-seen order.
+
+    Example: "Erase data [1]. Exceptions [2, 1] and [3]." -> [1, 2, 3]
+    """
     seen: list[int] = []
     for match in CITATION.finditer(text):
         for part in match.group(1).split(","):
@@ -108,11 +106,10 @@ def cited_numbers(text: str) -> list[int]:
 
 
 def collect_citations(text: str, chunks: list[dict]) -> list[Citation]:
-    """Resolve the numbers in an answer back to the passages they point at.
+    """Turn the cited numbers into Citation objects for the UI's source cards.
 
-    Numbers outside the range are dropped rather than trusted: a model that
-    invents [9] from six sources has invented the claim attached to it, and a
-    citation that resolves to nothing would break the viewer.
+    [n] points to the n-th passage. Numbers with no passage (e.g. [9] when
+    there are 6) are made up by the model, so they are logged and dropped.
     """
     citations = []
     for number in cited_numbers(text):
@@ -136,11 +133,10 @@ def collect_citations(text: str, chunks: list[dict]) -> list[Citation]:
 
 
 def extract_text(content) -> str:
-    """The answer as a string.
+    """Get the answer text from the model response.
 
-    Newer models return a list of typed blocks rather than plain text, and
-    reasoning blocks travel alongside the answer. Only the text blocks are the
-    answer; str() on the list would put its Python repr in front of the user.
+    Newer models return a list of blocks (text plus reasoning); only the
+    text blocks are the answer.
     """
     if isinstance(content, str):
         return content
@@ -155,25 +151,19 @@ def extract_text(content) -> str:
 
 
 def usage(response) -> tuple[int, int]:
-    """Real token counts from the response, for cost and metrics.
-
-    Reported by the API rather than estimated from word counts: an estimate
-    would make every cost number in the report fiction.
-    """
+    """(input, output) token counts reported by Gemini; 0 if missing."""
     meta = getattr(response, "usage_metadata", None) or {}
     return int(meta.get("input_tokens", 0)), int(meta.get("output_tokens", 0))
 
 
 @traceable(run_type="chain", name="answer_question")
 async def answer_question(llm: ChatGoogleGenerativeAI, query: str, chunks: list[dict]) -> Answer:
-    """Turn a question and its retrieved passages into a cited answer.
+    """Ask the model to answer from the passages, and return a cited Answer.
 
-    Traced as the parent of the model call, so one trace carries the question,
-    the passages it was given, the answer, and the tokens it cost.
+    Traced in LangSmith with the question, passages, answer and tokens.
     """
     if not chunks:
-        # Nothing retrieved means nothing to ground an answer in, so there is
-        # no reason to spend a call to find that out.
+        # No passages, nothing to ground an answer in: skip the model call.
         return Answer(
             text="I could not find anything about that in the corpus.",
             citations=[],
