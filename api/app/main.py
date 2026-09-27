@@ -71,11 +71,7 @@ async def health():
 
 @app.get("/analytics")
 async def analytics(hours: int = Query(default=24, ge=1, le=720)):
-    """What the dashboard shows: percentiles, trends and corpus facts.
-
-    Computed from request_log rather than from the counters, because a counter
-    cannot produce a percentile or a series.
-    """
+    """Chat analytics for the last `hours`: latency percentiles, trends, cost and corpus stats."""
     return await overview(pool, hours)
 
 

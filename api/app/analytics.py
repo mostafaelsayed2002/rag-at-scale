@@ -1,8 +1,6 @@
-"""The dashboard's numbers, computed from what actually happened.
+"""Analytics page data, computed from request_log and the corpus tables.
 
-Everything here comes from request_log or from the corpus tables. Nothing is
-estimated and nothing is invented: a panel with no data behind it should be
-removed from the dashboard rather than filled with a plausible number.
+Only real measurements are shown; cost is the one estimate (tokens x price).
 """
 
 import logging
@@ -20,8 +18,6 @@ TOTALS_SQL = """
            coalesce(percentile_cont(0.9) WITHIN GROUP (ORDER BY latency_ms), 0) AS p90_latency_ms,
            coalesce(percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms), 0) AS p95_latency_ms,
            coalesce(percentile_cont(0.99) WITHIN GROUP (ORDER BY latency_ms), 0) AS p99_latency_ms,
-           -- The slowest request itself. Below a few hundred rows the high
-           -- percentiles are all pointing at it, and showing it says so.
            coalesce(max(latency_ms), 0)                       AS max_latency_ms,
            coalesce(min(latency_ms), 0)                       AS min_latency_ms,
            count(*) FILTER (WHERE status_code >= 400)        AS errors,
@@ -32,8 +28,7 @@ TOTALS_SQL = """
     WHERE created_at >= now() - make_interval(hours => %s)
 """
 
-# date_trunc gives one row per hour that had traffic; hours with none are
-# filled in by the caller, so the chart shows a gap rather than skipping it.
+# One row per hour, for the charts. Hours with no requests are left out.
 SERIES_SQL = """
     SELECT date_trunc('hour', created_at)                    AS hour,
            count(*)                                          AS requests,
@@ -46,7 +41,8 @@ SERIES_SQL = """
     ORDER BY hour
 """
 
-# Stage timings live in JSONB: a cache hit has no stages at all.
+# Typical (p50) and slow (p95) time per chat stage, slowest first.
+# Splits each row's stages JSON into one row per stage; cache hits have none.
 STAGES_SQL = """
     SELECT key                                                        AS stage,
            count(*)                                                   AS samples,
@@ -76,25 +72,20 @@ SLOWEST_SQL = """
     LIMIT 5
 """
 
-
-def estimated_cost(tokens_input: int, tokens_output: int) -> float:
-    """Cost at the configured rates. Labelled an estimate wherever it is shown.
-
-    The token counts are real, reported by the API. The prices are settings,
-    because a published price is not something the code can measure.
-    """
-    return (
-        tokens_input / 1_000_000 * settings.usd_per_million_input_tokens
-        + tokens_output / 1_000_000 * settings.usd_per_million_output_tokens
-    )
-
-
 CACHE_SQL = """
     SELECT count(*) FILTER (WHERE cache_hit) AS hits,
            count(*)                          AS lookups
     FROM request_log
     WHERE created_at >= now() - make_interval(hours => %s)
 """
+
+
+def estimated_cost(tokens_input: int, tokens_output: int) -> float:
+    """Estimated USD cost: real token counts x the prices set in config."""
+    return (
+        tokens_input / 1_000_000 * settings.usd_per_million_input_tokens
+        + tokens_output / 1_000_000 * settings.usd_per_million_output_tokens
+    )
 
 
 async def overview(pool, hours: int = 24) -> dict:
@@ -143,15 +134,12 @@ async def overview(pool, hours: int = 24) -> dict:
         "stages": [
             {
                 "stage": row["stage"],
-                # Carried so the dashboard can tell one measurement from a
-                # distribution: with few rows every percentile is the same.
                 "samples": row["samples"],
                 "p50_ms": round(float(row["p50_ms"]), 1),
                 "p95_ms": round(float(row["p95_ms"]), 1),
             }
             for row in stages
         ],
-        # Counted from the history, so it covers the same window as the rest.
         "cache": {
             "hits": cache["hits"],
             "lookups": cache["lookups"],
