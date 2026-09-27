@@ -97,6 +97,9 @@ jobs:
             export OWNER='${{ vars.OWNER }}' \
                    POSTGRES_PASSWORD='${{ secrets.POSTGRES_PASSWORD }}' \
                    GOOGLE_API_KEY='${{ secrets.GOOGLE_API_KEY }}' \
+                   LANGSMITH_TRACING='${{ vars.LANGSMITH_TRACING }}' \
+                   LANGSMITH_API_KEY='${{ secrets.LANGSMITH_API_KEY }}' \
+                   LANGSMITH_PROJECT='${{ vars.LANGSMITH_PROJECT }}' \
                    TAG='${{ github.sha }}' &&
             docker compose -f docker-compose.prod.yml pull &&
             docker compose -f docker-compose.prod.yml up -d &&

@@ -1,53 +1,26 @@
-"""Search the corpus, list its documents, and serve the PDFs behind citations."""
+"""Chat over the corpus, list its documents, and serve the PDFs behind citations."""
 
 import logging
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, contextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from langsmith import get_current_run_tree, traceable
 
+from .analytics import overview
 from .cache import build_cache
 from .config import settings
 from .db import pool
 from .embeddings import build_embedder, embed_query
 from .llm import Answer, answer_question, build_llm
-from .models import ChatRequest, ChatResponse, MatricsResponse
-from .monitoring import Metrics, MetricsMiddleware, setup_logging
+from .models import ChatRequest, ChatResponse, Document, DocumentSummary
+from .monitoring import record_chat, setup_logging
+from .tracing import configure as configure_tracing
 
 logger = logging.getLogger(__name__)
-
-
-class DocumentSummary(BaseModel):
-    doc_id: str
-    title: str | None
-    collection: str | None
-    document_type: str | None
-    source_url: str | None
-    page_count: int | None
-    chunk_count: int | None
-
-
-class Document(DocumentSummary):
-    source_organization: str | None
-    celex_number: str | None
-    publication_date: str | None
-    has_file: bool
-
-
-class SearchHit(BaseModel):
-    chunk_id: int
-    doc_id: str
-    title: str | None
-    text: str
-    page_start: int
-    page_end: int
-    # 1 is identical, 0 is unrelated: cosine distance subtracted from one, so
-    # the number reads the way people expect a relevance score to.
-    score: float
 
 
 def index_pdfs(data_dir: Path) -> dict[str, Path]:
@@ -68,30 +41,20 @@ def index_pdfs(data_dir: Path) -> dict[str, Path]:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging(settings.log_level, as_json=settings.is_production)
+    # Before the model is built: the client reads the environment when it is
+    # constructed, so configuring afterwards would trace nothing.
+    configure_tracing()
     await pool.open()
-    # The middleware reaches the database through this, so it does not have to
-    # import the pool itself.
-    app.state.pool = pool
     app.state.pdfs = index_pdfs(settings.data_dir)
-    app.state.embedder = build_embedder() if settings.google_api_key else None
-    app.state.llm = build_llm() if settings.google_api_key else None
+    app.state.embedder = build_embedder()
+    app.state.llm = build_llm()
     app.state.cache = build_cache()
-    # Shares the cache's connection: one client is enough, and a second pool
-    # to the same Redis would buy nothing.
-    app.state.metrics = Metrics(app.state.cache.client)
     yield
     await pool.close()
-    if app.state.cache.client is not None:
-        await app.state.cache.client.aclose()
+    await app.state.cache.client.aclose()
 
 
 app = FastAPI(title="RAG at Scale", lifespan=lifespan)
-
-# The last middleware added is the outermost, so CORS below wraps this one.
-# That is the order we want: CORS headers are attached even to responses this
-# one counted as errors, and browser preflights are answered without being
-# measured as traffic.
-app.add_middleware(MetricsMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
@@ -106,10 +69,10 @@ async def health():
     return {"status": "ok"}
 
 
-@app.get("/metrics", response_model=MatricsResponse)
-async def metrics():
-    """Live counters, shared by every worker through Redis."""
-    return await app.state.metrics.summary()
+@app.get("/analytics")
+async def analytics(hours: int = Query(default=24, ge=1, le=720)):
+    """Chat analytics for the last `hours`: latency percentiles, trends, cost and corpus stats."""
+    return await overview(pool, hours)
 
 
 @app.get("/documents", response_model=list[DocumentSummary])
@@ -166,41 +129,66 @@ async def get_document_file(doc_id: str):
     )
 
 
-async def embed_cached(q: str) -> str:
-    """The query as a pgvector literal, from the cache when it has been asked.
+class Stopwatch:
+    """Times the parts of a request, so a slow answer says which part to fix."""
 
-    Shared by search and chat: embedding is a paid network call, and the same
-    question always produces the same vector. The key includes the model,
-    because vectors from two models are not comparable.
-    """
-    if app.state.embedder is None:
-        raise HTTPException(status_code=503, detail="This needs GOOGLE_API_KEY")
+    def __init__(self):
+        self.stages: dict[str, float] = {}
 
-    fingerprint = f"{settings.embedding_model}:{settings.embedding_dim}:{q}"
-    vector = await app.state.cache.get("embed", fingerprint)
-    if vector is not None:
-        return vector
+    @contextmanager
+    def __call__(self, stage: str):
+        started = time.perf_counter()
+        try:
+            yield
+        finally:
+            self.stages[stage] = round((time.perf_counter() - started) * 1000, 2)
 
+
+# The 768-number vector is noise in a trace, so only its size is recorded.
+@traceable(
+    run_type="embedding",
+    name="embed",
+    process_outputs=lambda _: {"dims": settings.embedding_dim},
+)
+def embed(q: str) -> str:
+    """The question as a pgvector literal, ready to compare against the corpus."""
     try:
-        vector = embed_query(app.state.embedder, q)
+        return embed_query(app.state.embedder, q)
     except Exception as exc:
-        # The query has to be embedded before anything can be retrieved, so an
-        # exhausted quota is reported as such rather than as a server fault.
+        # The question has to be embedded before anything can be retrieved, so
+        # an exhausted quota is reported as such rather than as a server fault.
         message = str(exc)
         if "RESOURCE_EXHAUSTED" in message or "429" in message:
             logger.warning("embedding quota exhausted: %s", message)
             raise HTTPException(
                 status_code=429,
-                detail="The embedding quota is used up, so search is unavailable right now.",
+                detail="The embedding quota is used up, so chat is unavailable right now.",
             ) from exc
         raise
 
-    await app.state.cache.set("embed", fingerprint, vector)
-    return vector
+
+async def generate(query: str, chunks: list[dict]) -> Answer:
+    """The cited answer, with an exhausted model quota reported as 429."""
+    try:
+        return await answer_question(app.state.llm, query, chunks)
+    except Exception as exc:
+        message = str(exc)
+        if "RESOURCE_EXHAUSTED" in message or "429" in message:
+            logger.warning("generation quota exhausted: %s", message)
+            raise HTTPException(
+                status_code=429,
+                detail="The model quota is used up, so answering is unavailable right now.",
+            ) from exc
+        raise
 
 
-async def retrieve(vector: str, k: int, collection: str | None = None) -> list[dict]:
-    """The k passages closest to the query vector."""
+@traceable(run_type="retriever", name="retrieve")
+async def retrieve(vector: str, k: int) -> list[dict]:
+    """The k passages closest to the query vector.
+
+    Traced as a retriever so a trace shows which passages an answer was built
+    from, which is what separates a retrieval problem from a prompting one.
+    """
     async with pool.connection() as conn:
         cur = await conn.execute(
             """
@@ -210,78 +198,79 @@ async def retrieve(vector: str, k: int, collection: str | None = None) -> list[d
             FROM chunks c
             JOIN documents d USING (doc_id)
             WHERE c.embedding IS NOT NULL
-              AND (%s::text IS NULL OR d.collection = %s)
             ORDER BY c.embedding <=> %s::vector
             LIMIT %s
             """,
-            (vector, collection, collection, vector, k),
+            (vector, vector, k),
         )
         return await cur.fetchall()
 
 
-@app.get("/search", response_model=list[SearchHit])
-async def search(
-    request: Request,
-    q: str = Query(min_length=1, description="what to search for"),
-    k: int = Query(default=10, ge=1, le=50, description="how many results"),
-    collection: str | None = Query(default=None, description="restrict to one collection"),
-):
-    """The passages themselves, without an answer written over them."""
-    cached = await app.state.cache.get("embed", f"{settings.embedding_model}:{settings.embedding_dim}:{q}")
-    # Left for the metrics middleware, which runs after this and cannot see
-    # what happened inside the endpoint.
-    request.state.cache_hit = cached is not None
-
-    vector = await embed_cached(q)
-    return await retrieve(vector, k, collection)
-
-
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: Request, body: ChatRequest):
-    """Retrieve passages, then have the model write an answer that cites them.
+# One LangSmith trace per question; embed, retrieve and answer_question nest inside.
+@traceable(
+    run_type="chain",
+    name="chat",
+    metadata={"llm_model": settings.llm_model, "retrieve_k": settings.retrieve_k},
+)
+async def chat(body: ChatRequest):
+    """Answer a question with citations: cache → embed → retrieve → generate.
 
-    The whole answer is cached, not just the embedding: at temperature zero
-    the same question produces the same answer, so serving the stored one is
-    honest rather than merely convenient, and costs no tokens at all.
+    A cache hit returns the stored answer and skips the other steps.
     """
-    if app.state.llm is None:
-        raise HTTPException(status_code=503, detail="Chat needs GOOGLE_API_KEY")
-
     started = time.perf_counter()
-    # The model and k belong in the key: change either and the stored answer
-    # is no longer the answer this configuration would produce.
-    fingerprint = f"{settings.llm_model}:{settings.retrieve_k}:{body.query}"
-    stored = await app.state.cache.get("answer", fingerprint)
-    request.state.cache_hit = stored is not None
+    clock = Stopwatch()
+    # Measured below, in finally, so a failed request is recorded too.
+    status = 500
+    cache_hit = False
+    tokens_input = tokens_output = 0
 
-    if stored is not None:
-        answer = Answer.model_validate_json(stored)
-    else:
-        vector = await embed_cached(body.query)
-        chunks = await retrieve(vector, settings.retrieve_k)
-        try:
-            answer = await answer_question(app.state.llm, body.query, chunks)
-        except Exception as exc:
-            message = str(exc)
-            if "RESOURCE_EXHAUSTED" in message or "429" in message:
-                logger.warning("generation quota exhausted: %s", message)
-                raise HTTPException(
-                    status_code=429,
-                    detail="The model quota is used up, so answering is unavailable right now.",
-                ) from exc
-            raise
-        await app.state.cache.set("answer", fingerprint, answer.model_dump_json())
+    try:
+        # The model and k belong in the key: change either and the stored
+        # answer is no longer the one this configuration would produce.
+        fingerprint = f"{settings.llm_model}:{settings.retrieve_k}:{body.query}"
+        stored = await app.state.cache.get(fingerprint)
+        cache_hit = stored is not None
+        # Lets LangSmith filter cached answers from generated ones.
+        if run := get_current_run_tree():
+            run.add_metadata({"cache_hit": cache_hit})
 
-    # Read by the metrics middleware. A cached answer spent no tokens, and
-    # counting them again would inflate the reported cost.
-    request.state.tokens_input = answer.tokens_input
-    request.state.tokens_output = answer.tokens_output
+        if stored is not None:
+            answer = Answer.model_validate_json(stored)
+        else:
+            with clock("embedding"):
+                vector = embed(body.query)
+            with clock("retrieval"):
+                chunks = await retrieve(vector, settings.retrieve_k)
+            with clock("generation"):
+                answer = await generate(body.query, chunks)
+            await app.state.cache.set(fingerprint, answer.model_dump_json())
+            # Only a generated answer spent tokens; a cached one cost nothing.
+            tokens_input, tokens_output = answer.tokens_input, answer.tokens_output
 
-    return ChatResponse(
-        response=answer.text,
-        citations=answer.citations,
-        thread_id=body.thread_id,
-        model_used=settings.llm_model,
-        cached=stored is not None,
-        processing_time=round(time.perf_counter() - started, 3),
-    )
+        status = 200
+        return ChatResponse(
+            response=answer.text,
+            citations=answer.citations,
+            thread_id=body.thread_id,
+            model_used=settings.llm_model,
+            cached=cache_hit,
+            retrieved_chunks=answer.retrieved,
+            tokens_input=answer.tokens_input,
+            tokens_output=answer.tokens_output,
+            processing_time=round(time.perf_counter() - started, 3),
+        )
+    except HTTPException as exc:
+        status = exc.status_code
+        raise
+    finally:
+        await record_chat(
+            pool,
+            query=body.query,
+            latency_ms=(time.perf_counter() - started) * 1000,
+            status=status,
+            cache_hit=cache_hit,
+            tokens_input=tokens_input,
+            tokens_output=tokens_output,
+            stages=clock.stages,
+        )

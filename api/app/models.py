@@ -38,6 +38,12 @@ class ChatResponse(BaseModel):
     thread_id: str = Field(..., description="The unique identifier for the conversation thread.")
     model_used: str = Field(..., description="The model used to generate the response.")
     cached: bool = Field(..., description="Indicates if the response was retrieved from cache.")
+    retrieved_chunks: int = Field(
+        default=0, description="Passages retrieved and put in front of the model."
+    )
+    # Reported by the API, not estimated, so the cost shown to the user is real.
+    tokens_input: int = Field(default=0, description="Prompt tokens the answer cost.")
+    tokens_output: int = Field(default=0, description="Completion tokens the answer cost.")
     processing_time: float = Field(
         ..., description="The time taken to process the request in seconds."
     )
@@ -47,6 +53,27 @@ class ChatResponse(BaseModel):
     )
 
 
+class DocumentSummary(BaseModel):
+    """Response model for GET /documents."""
+
+    doc_id: str
+    title: str | None
+    collection: str | None
+    document_type: str | None
+    source_url: str | None
+    page_count: int | None
+    chunk_count: int | None
+
+
+class Document(DocumentSummary):
+    """Response model for GET /documents/{doc_id}."""
+
+    source_organization: str | None
+    celex_number: str | None
+    publication_date: str | None
+    has_file: bool
+
+
 class HealthResponse(BaseModel):
     """Response model for health check endpoint."""
 
@@ -54,18 +81,6 @@ class HealthResponse(BaseModel):
     environment: str = Field(..., description="The current environment of the application.")
     version: str = "0.1.0"
     checks: dict = {}
-
-
-class MatricsResponse(BaseModel):
-    """Response model for metrics endpoint."""
-
-    total_requests: int
-    total_errors: int
-    error_rate: float
-    avg_latency_ms: float
-    cache_hit_rate: float
-    total_input_tokens: int
-    total_output_tokens: int
 
 
 class ErrorResponse(BaseModel):

@@ -1,10 +1,9 @@
 "use client";
 
 import { ArrowUpRight } from "lucide-react";
-import { DemoBadge } from "../ui";
 
-// Matched to the scripted answers and the ingested documents: a question
-// about something not in the corpus has nothing to cite.
+// Matched to the documents ingested so far: a question about something
+// outside the corpus has nothing to cite, and the answer says so.
 const EXAMPLES = [
   { title: "Marking", question: "How should providers mark AI-generated content?" },
   { title: "Copyright", question: "What are the copyright obligations for model providers?" },
@@ -19,9 +18,6 @@ export function EmptyState({ onPick }: { onPick: (question: string) => void }) {
     // my-auto rather than justify-center: centring with justify-center pushes
     // overflowing content above the scroll origin, where it can't be reached.
     <div className="mx-auto my-auto w-full max-w-3xl px-4 py-10 sm:px-6">
-      <div className="mb-4 sm:hidden">
-        <DemoBadge />
-      </div>
       <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
         Ask anything about EU AI and data regulation
       </h1>

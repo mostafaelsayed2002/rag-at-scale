@@ -3,7 +3,7 @@ services:
     image: pgvector/pgvector:pg16 # Use the official PostgreSQL 16 image with pgvector extension just enable it 
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-rag}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-rag}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: ${POSTGRES_DB:-rag}
     ports:
       - "5432:5432"
@@ -41,11 +41,17 @@ services:
     environment:
       # Host is the service name, not localhost: inside the network each
       # service is reachable by name, and localhost means this container.
-      DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD:-rag}@postgres:5432/${POSTGRES_DB:-rag}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rag}
       # Queries are embedded with the same model the corpus used.
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:-}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:?set GOOGLE_API_KEY in .env}
       # Again the service name: redis answers to it inside the network.
       REDIS_URL: redis://redis:6379/0
+      # Tracing. Off unless the .env turns it on, since it sends every
+      # question and answer to a third party.
+      LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
+      LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
+      LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-rag-at-scale}
+      LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
       DATA_DIR: /app/data
     volumes:
       # The corpus itself, so a citation can open the original PDF. Read-only:

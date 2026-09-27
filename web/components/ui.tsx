@@ -45,19 +45,6 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
   );
 }
 
-/** Shown wherever data is mocked, so a visitor to the live URL is never misled. */
-export function DemoBadge() {
-  return (
-    <span
-      title="The backend is not connected yet. Answers, documents and metrics are mock data."
-      className="inline-flex items-center gap-1.5 rounded-full border border-warn/30 bg-warn/10 px-2 py-0.5 text-[11px] font-medium text-warn"
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-warn" aria-hidden />
-      Demo data
-    </span>
-  );
-}
-
 export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`animate-pulse rounded-md bg-fg/[0.06] ${className}`} />;
 }
