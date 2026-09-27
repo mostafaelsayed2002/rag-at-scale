@@ -26,14 +26,15 @@ def build_embedder() -> GoogleGenerativeAIEmbeddings:
     process_inputs=lambda inputs: {"text": inputs.get("text")},
     process_outputs=lambda _: {"dims": settings.embedding_dim},
 )
-def embed_query(embedder: GoogleGenerativeAIEmbeddings, text: str) -> str:
+async def embed_query(embedder: GoogleGenerativeAIEmbeddings, text: str) -> str:
     """Embed one query and render it as a pgvector literal.
 
     Normalised to length 1, matching how the corpus was stored, so cosine
     distance and inner product agree.
     """
     try:
-        raw = embedder.embed_query(text)
+        # Async: the sync call would freeze every other request for ~0.5 s.
+        raw = await embedder.aembed_query(text)
     except Exception as exc:
         if is_quota_error(exc):
             raise QuotaExhausted("embedding", str(exc)) from exc

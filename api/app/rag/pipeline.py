@@ -62,7 +62,7 @@ class RagPipeline:
             return Answer.model_validate_json(stored)
 
         with run.clock("embedding"):
-            vector = embed_query(self.embedder, query)
+            vector = await embed_query(self.embedder, query)
         with run.clock("retrieval"):
             chunks = await retrieve(vector, settings.retrieve_k)
         with run.clock("generation"):
