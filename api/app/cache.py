@@ -1,16 +1,7 @@
-"""The answer cache, because every identical question costs money.
+"""Answer cache in Redis: a repeated question skips embedding, search and the LLM.
 
-One check, at the top of /chat: if the same question has been answered in the
-last hour, the stored answer is returned and nothing else runs — no embedding
-call, no search, no generation.
-
-Redis rather than a dictionary for three reasons: it survives a restart, every
-worker and container shares it, and it expires its own entries instead of
-growing forever.
-
-Nothing here may break a request. Redis is an optimisation, so every call is
-wrapped: if it is down or slow, the caller misses and does the real work,
-exactly as if nothing had been stored.
+Redis is shared by all workers, survives restarts and expires old entries.
+If Redis fails, the request just runs normally, as a cache miss.
 """
 
 import hashlib
@@ -23,9 +14,7 @@ from .config import settings
 
 logger = logging.getLogger(__name__)
 
-# Bumped when the meaning of a stored value changes, so a new deployment
-# ignores the old entries rather than serving something it would not produce
-# today. Cheaper and safer than emptying the database by hand.
+
 VERSION = "v1"
 
 
@@ -35,8 +24,6 @@ class Cache:
     def __init__(self, client: Redis, ttl: int = 3600):
         self.client = client
         self.ttl = ttl
-        # Reported by /metrics; also the honest way to tell whether the cache
-        # is earning its keep.
         self.hits = 0
         self.misses = 0
 
@@ -58,8 +45,6 @@ class Cache:
 
     async def set(self, question: str, answer: str) -> None:
         try:
-            # ex is the expiry in seconds, applied by Redis itself: the entry
-            # disappears on its own, so nothing has to sweep up after it.
             await self.client.set(self._key(question), answer, ex=self.ttl)
         except RedisError as exc:
             logger.warning("cache write failed, continuing without it: %s", exc)
