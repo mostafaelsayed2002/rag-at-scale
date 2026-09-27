@@ -5,7 +5,11 @@ from langsmith import traceable
 from ..db.pool import pool
 
 
-@traceable(run_type="retriever", name="retrieve")
+@traceable(
+    run_type="retriever",
+    name="retrieve",
+    process_inputs=lambda inputs: {"k": inputs.get("k"), "vector": "<hidden>"},
+)
 async def retrieve(vector: str, k: int) -> list[dict]:
     """The k passages closest to the query vector.
 
