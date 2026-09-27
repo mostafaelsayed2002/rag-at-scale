@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from langsmith import traceable
+from langsmith import get_current_run_tree, traceable
 
 from .analytics import overview
 from .cache import build_cache
@@ -144,6 +144,12 @@ class Stopwatch:
             self.stages[stage] = round((time.perf_counter() - started) * 1000, 2)
 
 
+# The 768-number vector is noise in a trace, so only its size is recorded.
+@traceable(
+    run_type="embedding",
+    name="embed",
+    process_outputs=lambda _: {"dims": settings.embedding_dim},
+)
 def embed(q: str) -> str:
     """The question as a pgvector literal, ready to compare against the corpus."""
     try:
@@ -201,6 +207,12 @@ async def retrieve(vector: str, k: int) -> list[dict]:
 
 
 @app.post("/chat", response_model=ChatResponse)
+# One LangSmith trace per question; embed, retrieve and answer_question nest inside.
+@traceable(
+    run_type="chain",
+    name="chat",
+    metadata={"llm_model": settings.llm_model, "retrieve_k": settings.retrieve_k},
+)
 async def chat(body: ChatRequest):
     """Answer a question with citations: cache → embed → retrieve → generate.
 
@@ -219,6 +231,9 @@ async def chat(body: ChatRequest):
         fingerprint = f"{settings.llm_model}:{settings.retrieve_k}:{body.query}"
         stored = await app.state.cache.get(fingerprint)
         cache_hit = stored is not None
+        # Lets LangSmith filter cached answers from generated ones.
+        if run := get_current_run_tree():
+            run.add_metadata({"cache_hit": cache_hit})
 
         if stored is not None:
             answer = Answer.model_validate_json(stored)
