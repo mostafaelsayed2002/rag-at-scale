@@ -6,7 +6,8 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ROOT = Path(__file__).resolve().parents[2]
+# api/app/core/config.py -> repository root.
+ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):

@@ -5,7 +5,7 @@ Only real measurements are shown; cost is the one estimate (tokens x price).
 
 import logging
 
-from .config import settings
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 

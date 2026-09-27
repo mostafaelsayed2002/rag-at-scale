@@ -1,8 +1,10 @@
+"""Request and response bodies for POST /chat."""
+
 from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
-from .llm import Citation
+from ..rag.types import Citation
 
 
 def _now() -> datetime:
@@ -51,41 +53,3 @@ class ChatResponse(BaseModel):
         default_factory=_now,
         description="The timestamp of the response.",
     )
-
-
-class DocumentSummary(BaseModel):
-    """Response model for GET /documents."""
-
-    doc_id: str
-    title: str | None
-    collection: str | None
-    document_type: str | None
-    source_url: str | None
-    page_count: int | None
-    chunk_count: int | None
-
-
-class Document(DocumentSummary):
-    """Response model for GET /documents/{doc_id}."""
-
-    source_organization: str | None
-    celex_number: str | None
-    publication_date: str | None
-    has_file: bool
-
-
-class HealthResponse(BaseModel):
-    """Response model for health check endpoint."""
-
-    status: str = Field(..., description="The status of the application.")
-    environment: str = Field(..., description="The current environment of the application.")
-    version: str = "0.1.0"
-    checks: dict = {}
-
-
-class ErrorResponse(BaseModel):
-    """Response model for error responses."""
-
-    error: str = Field(..., description="The error message.")
-    deitails: str | None = None
-    request_id: str | None = None
