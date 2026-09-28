@@ -4,19 +4,17 @@ version = "0.1.0"
 description = "RAG at scale: corpus download, chunking, and batched embedding"
 requires-python = ">=3.11"
 dependencies = [
-    "kagglehub>=0.3",
-    # ONNX runtime rather than PyTorch: same model, a few hundred MB not two GB.
-    "fastembed>=0.4",
     "psycopg[binary]>=3.2",
-    "pypdf>=6.18.1",
-    "fonttools>=4.65.0",
     "pymupdf>=1.28.2",
     "langchain-text-splitters>=1.1.2",
     "tokenizers>=0.23.2",
     "numpy>=2.4.6",
-    "langchain-google-genai>=4.4.0",
-    "python-dotenv>=1.2.3",
     "pydantic-settings>=2.15.0",
+    "httpx>=0.28.1",
+    "rich>=15.0.0",
+    # PyTorch, for embedding on the M1 GPU: ~10x faster than the ONNX model in
+    # fastembed on this machine, which would take days for a million chunks.
+    "sentence-transformers>=5",
 ]
 
 [tool.uv]
