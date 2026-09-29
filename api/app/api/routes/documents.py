@@ -1,17 +1,25 @@
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
-from ...schemas.documents import Document, DocumentSummary
+from ...schemas.documents import Document, DocumentPage
 from ...services import documents
 from ..deps import Pdfs
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 
-@router.get("", response_model=list[DocumentSummary])
-async def list_documents():
-    """Every ingested document, for the documents panel."""
-    return await documents.list_documents()
+@router.get("", response_model=DocumentPage)
+async def list_documents(
+    q: Annotated[str | None, Query(max_length=200, description="words in the title or CELEX id")] = None,
+    collection: Annotated[str | None, Query(description="e.g. Regulation, Directive")] = None,
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+):
+    """One page of the acts, for the documents panel. Searched and paged here:
+    the whole list is ~19 MB."""
+    return await documents.list_documents(q, collection, limit, offset)
 
 
 @router.get("/{doc_id}", response_model=Document)
