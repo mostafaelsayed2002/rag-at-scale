@@ -22,6 +22,7 @@ CREATE TABLE documents (
     ingested_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- Generalized Inverted Index
 CREATE INDEX documents_topics_idx ON documents USING GIN (topics);
 
 CREATE TABLE chunks (
