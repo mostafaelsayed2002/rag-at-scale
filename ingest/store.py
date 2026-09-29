@@ -54,6 +54,12 @@ def halfvec(vector: np.ndarray) -> str:
     return "[" + ",".join(f"{v:.5f}" for v in vector.astype(np.float32)) + "]"
 
 
+def pg_text(value: str | None) -> str | None:
+    """Postgres text cannot hold NUL (0x00) bytes, which a few PDFs' text
+    layers contain (broken fonts, OCR). They carry no meaning, so drop them."""
+    return value.replace("\x00", "") if value else value
+
+
 def collection(act_type: str | None) -> str:
     base = (act_type or "").split("_")[0]
     return COLLECTIONS.get(base, "Other")
@@ -74,7 +80,7 @@ def store_shard(
     ids = [d.doc_id for d in docs]
     wanted = set(ids)
     rows: Iterable[tuple] = (
-        (c.doc_id, c.index, c.text, c.page_start, c.page_end, c.tokens, halfvec(v))
+        (c.doc_id, c.index, pg_text(c.text), c.page_start, c.page_end, c.tokens, halfvec(v))
         for c, v in zip(chunks, vectors, strict=True)
         if c.doc_id in wanted
     )
@@ -104,7 +110,7 @@ def store_shard(
                 [
                     (
                         d.doc_id,
-                        d.title,
+                        pg_text(d.title),
                         f"https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:{d.doc_id}",
                         "EU Publications Office",
                         d.act_type,

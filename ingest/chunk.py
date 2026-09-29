@@ -28,7 +28,11 @@ def tokenizer_file() -> str:
     load it from this file: fetching it from the Hub in each of them was the
     slowest part of chunking."""
     from huggingface_hub import hf_hub_download
+    from huggingface_hub.utils import logging as hub_logging
 
+    # The Hub answers anonymous downloads with a warning to log in; public
+    # models need no token, so it is only noise.
+    hub_logging.set_verbosity_error()
     return hf_hub_download(settings.embedding_model, "tokenizer.json")
 
 

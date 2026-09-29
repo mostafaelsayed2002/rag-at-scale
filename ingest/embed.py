@@ -1,7 +1,7 @@
 """Embed the chunk shards into vector shards, on whatever GPU is available.
 
     python embed.py --work data/eurlex/work            # on the Mac (M1 GPU)
-    python embed.py --work /kaggle/working/work        # on a Kaggle / Colab GPU
+    python embed.py --work /kaggle/working/work        # on Kaggle: uses every GPU (T4 x2)
 
 Self-contained on purpose: it imports nothing from this project, so the same
 file runs in a notebook after uploading work/chunks/. Resumes shard by shard:
@@ -30,23 +30,47 @@ DEFAULT_MODEL = "BAAI/bge-base-en-v1.5"
 SHARD = re.compile(r"shard-(\d+)\.docs\.jsonl$")
 
 
-def pick_device() -> str:
+def pick_devices(requested: str | None) -> list[str]:
+    """Every GPU available (Kaggle's "T4 x2" means two), else the M1 GPU, else CPU.
+    `requested` can name them explicitly, comma-separated: "cuda:0,cuda:1"."""
+    if requested:
+        return requested.split(",")
     import torch
 
+    if torch.cuda.device_count() > 1:
+        return [f"cuda:{i}" for i in range(torch.cuda.device_count())]
     if torch.cuda.is_available():
-        return "cuda"
+        return ["cuda"]
     if torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
+        return ["mps"]
+    return ["cpu"]
 
 
-def load_model(name: str, device: str):
+def load_model(name: str, devices: list[str]):
+    """The model, and a pool of one process per device when there are several."""
+    from huggingface_hub.utils import logging as hub_logging
     from sentence_transformers import SentenceTransformer
 
-    model = SentenceTransformer(name, device=device)
-    # Half precision on a GPU: ~1.5-2x faster, and the vectors end up in
-    # half precision in the database anyway.
-    return model.half() if device in ("cuda", "mps") else model
+    hub_logging.set_verbosity_error()  # silence the Hub's "log in" warning
+
+    gpu = any(d.startswith(("cuda", "mps")) for d in devices)
+    model = SentenceTransformer(name, device=devices[0] if len(devices) == 1 else "cpu")
+    # Half precision on a GPU: ~1.5-2x faster, and the vectors end up in half
+    # precision in the database anyway. Pool workers inherit it.
+    if gpu:
+        model = model.half()
+    pool = model.start_multi_process_pool(target_devices=devices) if len(devices) > 1 else None
+    return model, pool
+
+
+def encode_block(model, texts: list[str], batch_size: int, pool) -> np.ndarray:
+    kwargs = {"batch_size": batch_size, "normalize_embeddings": True}
+    if pool is None:
+        return model.encode(texts, convert_to_numpy=True, show_progress_bar=False, **kwargs)
+    try:  # sentence-transformers 5+
+        return model.encode(texts, pool=pool, convert_to_numpy=True, show_progress_bar=False, **kwargs)
+    except TypeError:  # older releases, e.g. a notebook's preinstalled version
+        return model.encode_multi_process(texts, pool, **kwargs)
 
 
 def finished_shards(chunks_dir: Path) -> list[int]:
@@ -60,26 +84,31 @@ def chunk_count(chunks_dir: Path, shard: int) -> int:
 
 
 def read_texts(chunks_dir: Path, shard: int) -> list[str]:
-    with gzip.open(chunks_dir / f"shard-{shard:05d}.chunks.jsonl.gz", "rt", encoding="utf-8") as fh:
+    gz = chunks_dir / f"shard-{shard:05d}.chunks.jsonl.gz"
+    if gz.is_file():
+        with gzip.open(gz, "rt", encoding="utf-8") as fh:
+            return [json.loads(line)["text"] for line in fh]
+    # Kaggle unpacks .gz files when a dataset is uploaded: into a plain file, or
+    # into a folder of that name holding the file. Accept both.
+    plain = gz.with_suffix("")
+    if plain.is_dir():
+        plain = next(p for p in sorted(plain.iterdir()) if p.is_file())
+    with plain.open(encoding="utf-8") as fh:
         return [json.loads(line)["text"] for line in fh]
 
 
-def encode(model, texts: list[str], batch_size: int, on_batch=None) -> np.ndarray:
+def encode(model, texts: list[str], batch_size: int, on_batch=None, pool=None) -> np.ndarray:
     """Embed texts, longest first: similar lengths share a batch, so little
     compute is spent on padding. The original order is restored at the end."""
     order = sorted(range(len(texts)), key=lambda i: len(texts[i]), reverse=True)
     # Renamed in sentence-transformers 6; the old name still works on older installs.
     dim = getattr(model, "get_embedding_dimension", None) or model.get_sentence_embedding_dimension
     out = np.empty((len(texts), dim()), dtype=np.float16)
-    for start in range(0, len(order), batch_size):
-        idx = order[start : start + batch_size]
-        vectors = model.encode(
-            [texts[i] for i in idx],
-            batch_size=batch_size,
-            normalize_embeddings=True,
-            convert_to_numpy=True,
-            show_progress_bar=False,
-        )
+    # With several GPUs, hand each call enough work to keep them all busy.
+    block = batch_size * (64 if pool else 1)
+    for start in range(0, len(order), block):
+        idx = order[start : start + block]
+        vectors = encode_block(model, [texts[i] for i in idx], batch_size, pool)
         out[idx] = vectors.astype(np.float16)
         if on_batch:
             on_batch(len(idx))
@@ -98,7 +127,8 @@ def run(work: Path, model_name: str, batch_size: int, device: str | None, limit:
     if not todo:
         return stats
 
-    device = device or pick_device()
+    devices = pick_devices(device)
+    device = ",".join(devices)
     # Texts are read one shard at a time: all of them at once would be ~1.6 GB.
     total = sum(chunk_count(chunks_dir, s) for s in todo)
     started = time.perf_counter()
@@ -119,17 +149,21 @@ def run(work: Path, model_name: str, batch_size: int, device: str | None, limit:
         console = Console()
         console.print(f"[bold]Embedding[/] {total:,} chunks in {len(todo)} shards "
                       f"· model [cyan]{model_name}[/] · device [cyan]{device}[/]")
+        # A notebook's `!python` output is not a terminal: a live bar would only
+        # appear at the very end, so print a line per shard there instead.
+        if not console.is_terminal:
+            raise ImportError
         progress = Progress(
             SpinnerColumn(), TextColumn("[bold blue]Embedding"), BarColumn(),
             MofNCompleteColumn(), TaskProgressColumn(),
             TextColumn("· shard {task.fields[shard]}"), TextColumn("· {task.fields[rate]}"),
             TimeElapsedColumn(), TextColumn("ETA"), TimeRemainingColumn(), console=console,
         )
-    except ImportError:  # a bare notebook without rich: plain prints instead
+    except ImportError:  # not a terminal, or no rich installed: plain prints instead
         progress = None
-        print(f"Embedding {total:,} chunks in {len(todo)} shards on {device}")
+        print(f"Embedding {total:,} chunks in {len(todo)} shards on {device}", flush=True)
 
-    model = load_model(model_name, device)
+    model, pool = load_model(model_name, devices)
     task = progress.add_task("embed", total=total, shard="", rate="") if progress else None
 
     def advance(n: int) -> None:
@@ -142,20 +176,31 @@ def run(work: Path, model_name: str, batch_size: int, device: str | None, limit:
         for shard in todo:
             if progress:
                 progress.update(task, shard=f"{shard:05d}")
-            vectors = encode(model, read_texts(chunks_dir, shard), batch_size, advance)
+            vectors = encode(model, read_texts(chunks_dir, shard), batch_size, advance, pool)
             target = vectors_dir / f"shard-{shard:05d}.npy"
             tmp = target.with_suffix(".tmp.npy")
             np.save(tmp, vectors)
             tmp.rename(target)  # only a complete file gets the final name
             stats["embedded"] += 1
             if not progress:
-                print(f"shard {shard:05d}: {len(vectors):,} chunks, {stats['chunks']:,}/{total:,}")
+                elapsed = time.perf_counter() - started
+                rate = stats["chunks"] / elapsed
+                eta_min = (total - stats["chunks"]) / rate / 60 if rate else 0
+                print(
+                    f"shard {shard:05d} done · {stats['chunks']:,}/{total:,} chunks "
+                    f"({stats['chunks'] / total:.0%}) · {rate:.0f} chunks/s · ~{eta_min:.0f} min left",
+                    flush=True,  # show each line immediately, not in one block at the end
+                )
 
-    if progress:
-        with progress:
+    try:
+        if progress:
+            with progress:
+                work_through()
+        else:
             work_through()
-    else:
-        work_through()
+    finally:
+        if pool is not None:
+            model.stop_multi_process_pool(pool)
     stats["seconds"] = time.perf_counter() - started
     stats["device"] = device
     return stats
@@ -166,7 +211,9 @@ def main() -> None:
     parser.add_argument("--work", type=Path, required=True, help="folder with chunks/ (vectors/ is created)")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--batch-size", type=int, default=32)
-    parser.add_argument("--device", help="cuda, mps or cpu (default: the fastest available)")
+    parser.add_argument(
+        "--device", help='cuda, mps, cpu, or several: "cuda:0,cuda:1" (default: every GPU available)'
+    )
     parser.add_argument("--limit", type=int, help="only the first N shards, for testing")
     args = parser.parse_args()
     try:

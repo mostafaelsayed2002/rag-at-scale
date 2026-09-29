@@ -53,6 +53,8 @@ MIN_COMMON_WORD_RATIO = 0.06
 
 
 def clean(text: str) -> str:
+    # NUL bytes from broken fonts: meaningless, and Postgres text rejects them.
+    text = text.replace("\x00", "")
     text = SOFT_HYPHEN.sub("", text)
     text = LINE_HYPHEN.sub(r"\1\2", text)
     text = FURNITURE.sub("", text)
