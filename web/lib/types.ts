@@ -49,22 +49,31 @@ export type Conversation = {
   messages: Message[];
 };
 
-/** GET /documents */
+/** One act in the documents list. */
 export type DocumentSummary = {
   doc_id: string;
   title: string | null;
   collection: string | null;
   document_type: string | null;
   source_url: string | null;
+  publication_date: string | null;
   page_count: number | null;
   chunk_count: number | null;
+};
+
+/** GET /documents: one page of the matching acts, searched on the server. */
+export type DocumentPage = {
+  total: number;
+  items: DocumentSummary[];
+  collections: { name: string; count: number }[];
+  corpus: { documents: number; chunks: number };
 };
 
 /** GET /documents/{id} */
 export type DocumentDetail = DocumentSummary & {
   source_organization: string | null;
   celex_number: string | null;
-  publication_date: string | null;
+  topics: string[];
   has_file: boolean;
 };
 

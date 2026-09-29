@@ -14,8 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "RAG at Scale · EU AI & Data Regulation",
-  description: "Grounded answers about EU AI and data regulation, with citations to the exact passage.",
+  title: "RAG at Scale · EU Law",
+  description: "Grounded answers about all EU law in force, with citations to the exact passage.",
 };
 
 export const viewport: Viewport = {

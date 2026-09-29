@@ -4,7 +4,7 @@ import type {
   ChatEvent,
   Citation,
   DocumentDetail,
-  DocumentSummary,
+  DocumentPage,
   Message,
 } from "./types";
 
@@ -26,9 +26,20 @@ async function getJson<T>(path: string): Promise<T> {
   return res.json();
 }
 
-/** GET /documents */
-export function listDocuments(): Promise<DocumentSummary[]> {
-  return getJson("/documents");
+/** GET /documents: one page of acts. The whole corpus is ~19 MB, so it is
+ * searched and paged by the API rather than downloaded. */
+export function listDocuments(params: {
+  q?: string;
+  collection?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<DocumentPage> {
+  const search = new URLSearchParams();
+  if (params.q) search.set("q", params.q);
+  if (params.collection) search.set("collection", params.collection);
+  search.set("limit", String(params.limit ?? 50));
+  search.set("offset", String(params.offset ?? 0));
+  return getJson(`/documents?${search}`);
 }
 
 /** GET /documents/{id} */

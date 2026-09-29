@@ -62,7 +62,7 @@ export function Composer({ streaming, onSend, onStop, autoFocusKey }: Props) {
               submit();
             }
           }}
-          placeholder="Ask about the AI Act, GDPR, NIS2…"
+          placeholder="Ask anything about EU law…"
           aria-label="Message"
           className="scrollbar-thin max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[15px] leading-6 outline-none placeholder:text-subtle"
         />
