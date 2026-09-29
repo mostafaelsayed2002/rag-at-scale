@@ -21,4 +21,5 @@ class Document(DocumentSummary):
     source_organization: str | None
     celex_number: str | None
     publication_date: str | None
+    topics: list[str]  # EUROVOC subjects, e.g. ["data protection", "personal data"]
     has_file: bool

@@ -15,7 +15,9 @@ from ..core.config import settings
 logger = logging.getLogger(__name__)
 
 
-VERSION = "v1"
+# v2: the corpus moved to all EU acts in force with bge-base embeddings;
+# answers cached from the old corpus must not be served.
+VERSION = "v2"
 
 
 class Cache:

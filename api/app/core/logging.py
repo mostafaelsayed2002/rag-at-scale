@@ -34,3 +34,7 @@ def setup_logging(level: str = "INFO", as_json: bool = True) -> None:
     root = logging.getLogger()
     root.handlers = [handler]
     root.setLevel(level.upper())
+    # Libraries that log every HTTP call (the model download checks, Gemini)
+    # at INFO would drown the app's own lines.
+    for noisy in ("httpx", "httpcore", "huggingface_hub", "sentence_transformers", "google_genai"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)

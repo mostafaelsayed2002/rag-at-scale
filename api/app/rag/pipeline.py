@@ -5,8 +5,9 @@ No HTTP here. The chat route calls answer() and handles the request around it.
 
 from dataclasses import dataclass, field
 
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langsmith import get_current_run_tree, traceable
+from sentence_transformers import SentenceTransformer
 
 from ..core.config import settings
 from ..core.timing import Stopwatch
@@ -34,7 +35,7 @@ class RagPipeline:
     def __init__(
         self,
         cache: Cache,
-        embedder: GoogleGenerativeAIEmbeddings,
+        embedder: SentenceTransformer,
         llm: ChatGoogleGenerativeAI,
     ):
         self.cache = cache

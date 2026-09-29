@@ -1,46 +1,45 @@
 """Embed search queries with the same model the corpus was embedded with."""
 
+import asyncio
+
 import numpy as np
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
 from langsmith import traceable
+from sentence_transformers import SentenceTransformer
 
 from ..core.config import settings
-from ..core.errors import QuotaExhausted, is_quota_error
 
 
-def build_embedder() -> GoogleGenerativeAIEmbeddings:
-    """Created once at startup; building it per request would add latency."""
-    return GoogleGenerativeAIEmbeddings(
-        model=settings.embedding_model,
-        output_dimensionality=settings.embedding_dim,
-        # Passed explicitly: pydantic-settings reads .env into the Settings
-        # object, not into the process environment where the client looks.
-        google_api_key=settings.google_api_key,
+def build_embedder() -> SentenceTransformer:
+    """Loaded once at startup (~0.5 GB); loading per request would add seconds."""
+    from transformers.utils import logging as transformers_logging
+
+    transformers_logging.disable_progress_bar()  # its "Loading weights" bar clutters startup logs
+    model = SentenceTransformer(settings.embedding_model, device=settings.embedding_device)
+    _encode(model, "warm up")  # the first call is slow; pay it at startup, not on a user
+    return model
+
+
+def _encode(model: SentenceTransformer, text: str) -> np.ndarray:
+    return model.encode(
+        settings.query_prefix + text, normalize_embeddings=True, show_progress_bar=False
     )
 
 
-# Traced without the client object or the 768-number vector: both are noise.
+# Traced without the model object or the 768-number vector: both are noise.
 @traceable(
     run_type="embedding",
     name="embed",
     process_inputs=lambda inputs: {"text": inputs.get("text")},
     process_outputs=lambda _: {"dims": settings.embedding_dim},
 )
-async def embed_query(embedder: GoogleGenerativeAIEmbeddings, text: str) -> str:
-    """Embed one query and render it as a pgvector literal.
+async def embed_query(model: SentenceTransformer, text: str) -> str:
+    """Embed one question and render it as a halfvec literal.
 
-    Normalised to length 1, matching how the corpus was stored, so cosine
-    distance and inner product agree.
+    Normalised to length 1, like the corpus, so cosine distance and inner
+    product agree.
     """
-    try:
-        # Async: the sync call would freeze every other request for ~0.5 s.
-        raw = await embedder.aembed_query(text)
-    except Exception as exc:
-        if is_quota_error(exc):
-            raise QuotaExhausted("embedding", str(exc)) from exc
-        raise
-    vector = np.asarray(raw, dtype=np.float32)
+    # A CPU-bound call: in a thread, so other requests keep being served.
+    vector = await asyncio.to_thread(_encode, model, text)
     if vector.shape != (settings.embedding_dim,):
         raise ValueError(f"expected {settings.embedding_dim} dimensions, got {vector.shape}")
-    vector /= max(float(np.linalg.norm(vector)), 1e-12)
-    return "[" + ",".join(f"{value:.6f}" for value in vector) + "]"
+    return "[" + ",".join(f"{value:.5f}" for value in vector) + "]"

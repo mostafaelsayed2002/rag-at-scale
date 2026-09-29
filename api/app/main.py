@@ -13,6 +13,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from langsmith import tracing_context
 
 from .api.routes import analytics, chat, documents, health
 from .core.config import settings
@@ -21,9 +22,10 @@ from .core.logging import setup_logging
 from .core.rate_limit import limiter
 from .core.tracing import configure as configure_tracing
 from .db.pool import pool
-from .rag.embedder import build_embedder
+from .rag.embedder import build_embedder, embed_query
 from .rag.generator import build_llm
 from .rag.pipeline import RagPipeline
+from .rag.retriever import retrieve
 from .services.cache import build_cache
 from .services.documents import index_pdfs
 
@@ -37,7 +39,13 @@ async def lifespan(app: FastAPI):
     await pool.open()
     cache = build_cache()
     app.state.pdfs = index_pdfs(settings.data_dir)
-    app.state.pipeline = RagPipeline(cache=cache, embedder=build_embedder(), llm=build_llm())
+    embedder = build_embedder()
+    # One real search at startup: it opens a database connection and pulls the
+    # top of the HNSW graph into memory, so the first user does not wait ~2 s
+    # (measured: first search 1,751 ms, then 5-8 ms). Kept out of LangSmith.
+    with tracing_context(enabled=False):
+        await retrieve(await embed_query(embedder, "warm up"), settings.retrieve_k)
+    app.state.pipeline = RagPipeline(cache=cache, embedder=embedder, llm=build_llm())
     yield
     await pool.close()
     await cache.client.aclose()

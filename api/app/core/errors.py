@@ -18,13 +18,12 @@ class QuotaExhausted(Exception):
     """Gemini refused a call because the quota is used up."""
 
     MESSAGES: ClassVar[dict[str, str]] = {
-        "embedding": "The embedding quota is used up, so chat is unavailable right now.",
         "generation": "The model quota is used up, so answering is unavailable right now.",
     }
 
     def __init__(self, step: str, message: str):
         super().__init__(message)
-        self.step = step  # "embedding" or "generation"
+        self.step = step  # the pipeline step that hit the quota, e.g. "generation"
 
     @property
     def detail(self) -> str:

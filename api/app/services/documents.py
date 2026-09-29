@@ -42,7 +42,7 @@ async def get_document(doc_id: str) -> dict | None:
             """
             SELECT doc_id, title, collection, document_type, source_url,
                    page_count, chunk_count, source_organization, celex_number,
-                   publication_date::text AS publication_date
+                   publication_date::text AS publication_date, topics
             FROM documents
             WHERE doc_id = %s
             """,
