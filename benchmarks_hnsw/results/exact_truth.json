@@ -1,0 +1,1502 @@
+{
+ "When must a controller notify a personal data breach to the supervisory authority?": {
+  "top10": [
+   446664,
+   437726,
+   642139,
+   884153,
+   871442,
+   535180,
+   1021539,
+   1021521,
+   884152,
+   639184
+  ],
+  "seconds": 16.555
+ },
+ "What rights does a data subject have to access their personal data?": {
+  "top10": [
+   300637,
+   446643,
+   610624,
+   535037,
+   446543,
+   653816,
+   875646,
+   446544,
+   1000953,
+   610699
+  ],
+  "seconds": 8.654
+ },
+ "Under what conditions can personal data be transferred to a third country?": {
+  "top10": [
+   536651,
+   586745,
+   642162,
+   447015,
+   536626,
+   535402,
+   446687,
+   672714,
+   527789,
+   446578
+  ],
+  "seconds": 13.111
+ },
+ "When is a data protection impact assessment required?": {
+  "top10": [
+   535124,
+   535176,
+   446564,
+   1021541,
+   300669,
+   535177,
+   446563,
+   446667,
+   300670,
+   535125
+  ],
+  "seconds": 4.795
+ },
+ "What are the rules on processing health data?": {
+  "top10": [
+   943301,
+   943235,
+   943324,
+   943299,
+   943300,
+   943437,
+   943481,
+   535089,
+   943498,
+   943447
+  ],
+  "seconds": 2.635
+ },
+ "What obligations do providers of high-risk AI systems have?": {
+  "top10": [
+   860726,
+   860708,
+   860741,
+   860739,
+   860742,
+   860743,
+   1056713,
+   860584,
+   860587,
+   860588
+  ],
+  "seconds": 2.811
+ },
+ "Which AI practices are prohibited in the European Union?": {
+  "top10": [
+   860674,
+   860677,
+   860536,
+   860675,
+   1056728,
+   860619,
+   814284,
+   860692,
+   888069,
+   1056658
+  ],
+  "seconds": 3.262
+ },
+ "What transparency obligations apply to AI systems that interact with people?": {
+  "top10": [
+   860626,
+   860628,
+   860573,
+   860515,
+   860517,
+   860631,
+   860718,
+   860958,
+   860790,
+   860616
+  ],
+  "seconds": 10.228
+ },
+ "Is a public summary of training data required for general-purpose AI models?": {
+  "top10": [
+   860603,
+   860958,
+   860598,
+   860954,
+   860601,
+   860960,
+   860597,
+   860611,
+   860599,
+   963562
+  ],
+  "seconds": 24.988
+ },
+ "What penalties apply for breaching the AI rules?": {
+  "top10": [
+   860901,
+   860902,
+   860671,
+   860663,
+   1056747,
+   860515,
+   860900,
+   788229,
+   860725,
+   1056736
+  ],
+  "seconds": 29.011
+ },
+ "Can an online platform show targeted advertising to minors?": {
+  "top10": [
+   740103,
+   849199,
+   439113,
+   740224,
+   740128,
+   510666,
+   740222,
+   740102,
+   439112,
+   740239
+  ],
+  "seconds": 22.857
+ },
+ "What must very large online platforms do to assess systemic risks?": {
+  "top10": [
+   740118,
+   740120,
+   740116,
+   740267,
+   740113,
+   740117,
+   740109,
+   740154,
+   740235,
+   740237
+  ],
+  "seconds": 30.01
+ },
+ "How should hosting services handle notices of illegal content?": {
+  "top10": [
+   740083,
+   740079,
+   740201,
+   740082,
+   740080,
+   740056,
+   740084,
+   740119,
+   740199,
+   887957
+  ],
+  "seconds": 23.737
+ },
+ "What obligations do gatekeepers have under the digital markets rules?": {
+  "top10": [
+   732551,
+   732453,
+   732507,
+   732483,
+   732550,
+   732493,
+   811827,
+   732449,
+   732460,
+   732480
+  ],
+  "seconds": 13.788
+ },
+ "Are online marketplaces required to trace the traders who sell on them?": {
+  "top10": [
+   574354,
+   781408,
+   740108,
+   740230,
+   740107,
+   480619,
+   740226,
+   552522,
+   888095,
+   552519
+  ],
+  "seconds": 9.921
+ },
+ "Which entities must report significant cybersecurity incidents?": {
+  "top10": [
+   937175,
+   704827,
+   704839,
+   937123,
+   885006,
+   704826,
+   942830,
+   942921,
+   747021,
+   811247
+  ],
+  "seconds": 7.29
+ },
+ "What are the rules on roaming charges within the EU?": {
+  "top10": [
+   721071,
+   721038,
+   721024,
+   464773,
+   422642,
+   537382,
+   721055,
+   751581,
+   537386,
+   721039
+  ],
+  "seconds": 4.624
+ },
+ "What cybersecurity requirements apply to connected products?": {
+  "top10": [
+   888269,
+   888075,
+   888024,
+   888041,
+   988459,
+   844650,
+   888282,
+   884992,
+   888150,
+   888141
+  ],
+  "seconds": 4.589
+ },
+ "How must electronic communications providers protect the confidentiality of communications?": {
+  "top10": [
+   118856,
+   711953,
+   767878,
+   547815,
+   511176,
+   51469,
+   118836,
+   510799,
+   37623,
+   1025657
+  ],
+  "seconds": 4.004
+ },
+ "What is the role of the EU cybersecurity agency?": {
+  "top10": [
+   570637,
+   704816,
+   570647,
+   517077,
+   811240,
+   570710,
+   724224,
+   638556,
+   937046,
+   570701
+  ],
+  "seconds": 2.456
+ },
+ "How long is the withdrawal period for goods bought online?": {
+  "top10": [
+   278987,
+   586978,
+   211749,
+   586979,
+   760715,
+   279037,
+   623685,
+   623688,
+   684361,
+   761212
+  ],
+  "seconds": 3.548
+ },
+ "What information must a trader give before a consumer signs a distance contract?": {
+  "top10": [
+   761224,
+   761206,
+   279008,
+   279016,
+   279006,
+   761209,
+   761207,
+   761228,
+   761227,
+   761229
+  ],
+  "seconds": 7.109
+ },
+ "Which commercial practices are considered unfair to consumers?": {
+  "top10": [
+   154055,
+   830718,
+   154031,
+   154024,
+   154040,
+   202246,
+   154023,
+   927569,
+   154050,
+   154028
+  ],
+  "seconds": 8.439
+ },
+ "What are the rules on product safety for consumer goods?": {
+  "top10": [
+   22765,
+   781445,
+   781459,
+   753667,
+   781441,
+   3651,
+   753666,
+   781418,
+   753688,
+   230940
+  ],
+  "seconds": 5.692
+ },
+ "What guarantee rights does a consumer have for faulty goods?": {
+  "top10": [
+   550457,
+   550451,
+   279025,
+   833874,
+   833363,
+   830740,
+   781491,
+   279022,
+   500193,
+   22846
+  ],
+  "seconds": 5.04
+ },
+ "When must a merger be notified to the European Commission?": {
+  "top10": [
+   648484,
+   606453,
+   650858,
+   651875,
+   601266,
+   645794,
+   707150,
+   710998,
+   650204,
+   650484
+  ],
+  "seconds": 5.389
+ },
+ "What counts as abuse of a dominant position?": {
+  "top10": [
+   75535,
+   17054,
+   136174,
+   23876,
+   23971,
+   85866,
+   26274,
+   122546,
+   136168,
+   26644
+  ],
+  "seconds": 6.13
+ },
+ "Under which conditions is State aid compatible with the internal market?": {
+  "top10": [
+   424060,
+   435919,
+   955826,
+   920960,
+   318186,
+   396553,
+   470936,
+   545402,
+   433922,
+   397082
+  ],
+  "seconds": 6.904
+ },
+ "Which agreements between competitors are prohibited?": {
+  "top10": [
+   10798,
+   5715,
+   7069,
+   26373,
+   127053,
+   11343,
+   13264,
+   7054,
+   17210,
+   88712
+  ],
+  "seconds": 4.056
+ },
+ "What State aid can be given to repair damage caused by natural disasters?": {
+  "top10": [
+   613411,
+   373117,
+   442204,
+   120425,
+   956027,
+   92435,
+   593871,
+   743747,
+   442191,
+   140903
+  ],
+  "seconds": 4.521
+ },
+ "What capital requirements apply to credit institutions?": {
+  "top10": [
+   327252,
+   779302,
+   778558,
+   478952,
+   571059,
+   747445,
+   445455,
+   77245,
+   778574,
+   372637
+  ],
+  "seconds": 2.509
+ },
+ "What rules apply to crypto-asset service providers?": {
+  "top10": [
+   783470,
+   783210,
+   783462,
+   783247,
+   783467,
+   783248,
+   783471,
+   783473,
+   783463,
+   783460
+  ],
+  "seconds": 5.228
+ },
+ "What must be disclosed in a prospectus for securities offered to the public?": {
+  "top10": [
+   887431,
+   1045745,
+   487394,
+   572046,
+   487399,
+   487279,
+   108193,
+   572276,
+   572340,
+   487397
+  ],
+  "seconds": 8.352
+ },
+ "What are the obligations of banks to prevent money laundering?": {
+  "top10": [
+   550658,
+   907840,
+   832492,
+   832271,
+   199136,
+   591896,
+   199180,
+   199181,
+   510279,
+   398782
+  ],
+  "seconds": 6.899
+ },
+ "How are deposits protected if a bank fails?": {
+  "top10": [
+   360435,
+   360486,
+   1023513,
+   432357,
+   432356,
+   361059,
+   348153,
+   711647,
+   1023488,
+   268725
+  ],
+  "seconds": 5.46
+ },
+ "What is the maximum weekly working time for workers?": {
+  "top10": [
+   362918,
+   118406,
+   551732,
+   131211,
+   362912,
+   118409,
+   621281,
+   715172,
+   168990,
+   500310
+  ],
+  "seconds": 2.663
+ },
+ "What are the rights of posted workers?": {
+  "top10": [
+   361923,
+   361897,
+   361885,
+   510525,
+   361925,
+   361908,
+   361941,
+   361924,
+   510546,
+   360823
+  ],
+  "seconds": 2.457
+ },
+ "How much paid annual leave are workers entitled to?": {
+  "top10": [
+   229761,
+   551728,
+   910075,
+   432208,
+   468215,
+   433057,
+   156689,
+   468217,
+   12141,
+   432221
+  ],
+  "seconds": 2.464
+ },
+ "What protection do pregnant workers have at work?": {
+  "top10": [
+   39175,
+   39174,
+   27927,
+   39181,
+   39173,
+   39189,
+   27918,
+   39176,
+   27919,
+   39182
+  ],
+  "seconds": 1.891
+ },
+ "How is social security coordinated for people who move between Member States?": {
+  "top10": [
+   814036,
+   132498,
+   130662,
+   359986,
+   829436,
+   256226,
+   574422,
+   153811,
+   146655,
+   245731
+  ],
+  "seconds": 2.859
+ },
+ "What is required to place a medicinal product on the market?": {
+  "top10": [
+   146023,
+   77430,
+   714202,
+   352807,
+   143415,
+   69336,
+   108468,
+   146009,
+   108427,
+   69333
+  ],
+  "seconds": 2.759
+ },
+ "What are the rules for clinical trials on medicinal products?": {
+  "top10": [
+   370964,
+   370949,
+   370980,
+   1024734,
+   370965,
+   154003,
+   371089,
+   370948,
+   108551,
+   130995
+  ],
+  "seconds": 2.597
+ },
+ "How are medical devices classified by risk?": {
+  "top10": [
+   308135,
+   484506,
+   484412,
+   484508,
+   484146,
+   742452,
+   484509,
+   982596,
+   484507,
+   742451
+  ],
+  "seconds": 3.926
+ },
+ "What rules apply to the cross-border healthcare of patients?": {
+  "top10": [
+   278101,
+   436806,
+   278143,
+   278120,
+   278131,
+   278147,
+   278114,
+   278098,
+   278102,
+   943245
+  ],
+  "seconds": 4.106
+ },
+ "What are the requirements for blood and blood components?": {
+  "top10": [
+   143513,
+   154513,
+   154514,
+   143514,
+   143498,
+   154498,
+   119109,
+   119101,
+   119103,
+   119091
+  ],
+  "seconds": 6.682
+ },
+ "What information must appear on food labels?": {
+  "top10": [
+   133479,
+   292174,
+   501486,
+   317436,
+   317437,
+   687063,
+   222151,
+   281120,
+   357104,
+   238549
+  ],
+  "seconds": 7.551
+ },
+ "What are the maximum levels of contaminants allowed in food?": {
+  "top10": [
+   304662,
+   779501,
+   43689,
+   779502,
+   235011,
+   779500,
+   303599,
+   440011,
+   589234,
+   950984
+  ],
+  "seconds": 8.973
+ },
+ "Which food additives are authorised?": {
+  "top10": [
+   222117,
+   1057734,
+   500182,
+   186959,
+   207482,
+   133559,
+   281117,
+   335446,
+   291815,
+   476664
+  ],
+  "seconds": 4.402
+ },
+ "What rules apply to novel foods?": {
+  "top10": [
+   526324,
+   501611,
+   424312,
+   424310,
+   424311,
+   71508,
+   685914,
+   71554,
+   501492,
+   811773
+  ],
+  "seconds": 4.513
+ },
+ "How must allergens be indicated on food?": {
+  "top10": [
+   133479,
+   292248,
+   292173,
+   501481,
+   83621,
+   870318,
+   71526,
+   281117,
+   1036675,
+   292214
+  ],
+  "seconds": 4.534
+ },
+ "What direct payments can farmers receive under the common agricultural policy?": {
+  "top10": [
+   347046,
+   328031,
+   346511,
+   587025,
+   372389,
+   889161,
+   138864,
+   228864,
+   344514,
+   500364
+  ],
+  "seconds": 4.603
+ },
+ "How is organic production defined and labelled?": {
+  "top10": [
+   566434,
+   885509,
+   188077,
+   524502,
+   188081,
+   524584,
+   392233,
+   675382,
+   188040,
+   524542
+  ],
+  "seconds": 6.906
+ },
+ "What are the rules on protected designations of origin for wine?": {
+  "top10": [
+   560831,
+   571325,
+   346752,
+   237012,
+   237011,
+   346751,
+   560810,
+   749438,
+   749321,
+   571324
+  ],
+  "seconds": 9.02
+ },
+ "What measures support the market for milk and milk products?": {
+  "top10": [
+   19747,
+   346807,
+   19787,
+   15432,
+   54482,
+   54474,
+   39479,
+   19786,
+   15418,
+   15944
+  ],
+  "seconds": 5.712
+ },
+ "How are plant protection products approved?": {
+  "top10": [
+   246869,
+   246943,
+   246890,
+   246873,
+   65392,
+   246940,
+   246970,
+   1046438,
+   953419,
+   246925
+  ],
+  "seconds": 5.35
+ },
+ "What does my dog need to travel with me into the EU from another country?": {
+  "top10": [
+   1027521,
+   1027527,
+   1027513,
+   961293,
+   785743,
+   1041031,
+   1030914,
+   1027531,
+   1027541,
+   1030911
+  ],
+  "seconds": 4.5
+ },
+ "What are the welfare rules for animals during transport?": {
+  "top10": [
+   154889,
+   154830,
+   154885,
+   154859,
+   154886,
+   154860,
+   481436,
+   154887,
+   154890,
+   228848
+  ],
+  "seconds": 6.2
+ },
+ "How must animals be stunned before slaughter?": {
+  "top10": [
+   246722,
+   246721,
+   246723,
+   246754,
+   246704,
+   246705,
+   146470,
+   246710,
+   146462,
+   712717
+  ],
+  "seconds": 5.564
+ },
+ "What measures apply to control African swine fever?": {
+  "top10": [
+   871114,
+   852792,
+   785790,
+   939992,
+   808611,
+   870348,
+   889339,
+   19181,
+   859707,
+   1042159
+  ],
+  "seconds": 5.702
+ },
+ "What are the requirements for identification of cattle?": {
+  "top10": [
+   588590,
+   658042,
+   588588,
+   209755,
+   588589,
+   374483,
+   614690,
+   444970,
+   372926,
+   372933
+  ],
+  "seconds": 18.552
+ },
+ "What are the fishing opportunities for cod in the Baltic Sea?": {
+  "top10": [
+   178598,
+   155057,
+   347484,
+   344497,
+   477376,
+   155058,
+   461365,
+   132335,
+   248465,
+   221999
+  ],
+  "seconds": 36.843
+ },
+ "What is the minimum size of fish that may be landed?": {
+  "top10": [
+   258661,
+   222282,
+   167548,
+   248672,
+   575210,
+   66615,
+   178727,
+   575228,
+   300111,
+   203426
+  ],
+  "seconds": 23.514
+ },
+ "How are fishing vessels monitored by satellite?": {
+  "top10": [
+   811370,
+   282160,
+   811369,
+   228836,
+   259867,
+   148372,
+   282172,
+   104082,
+   133153,
+   883606
+  ],
+  "seconds": 6.233
+ },
+ "What rules apply to fishing in the waters of third countries?": {
+  "top10": [
+   501373,
+   185507,
+   248286,
+   234477,
+   167536,
+   477164,
+   203433,
+   167537,
+   1029001,
+   185511
+  ],
+  "seconds": 3.67
+ },
+ "What is the landing obligation for catches?": {
+  "top10": [
+   883654,
+   405536,
+   811421,
+   411587,
+   410234,
+   411545,
+   347674,
+   203426,
+   411542,
+   811549
+  ],
+  "seconds": 6.928
+ },
+ "How does the EU emissions trading system work?": {
+  "top10": [
+   780735,
+   538811,
+   574074,
+   759975,
+   797148,
+   810848,
+   780708,
+   921711,
+   600088,
+   810864
+  ],
+  "seconds": 9.914
+ },
+ "What are the rules on the shipment of waste?": {
+  "top10": [
+   169591,
+   852400,
+   169634,
+   169618,
+   169600,
+   852330,
+   852304,
+   169619,
+   852368,
+   169564
+  ],
+  "seconds": 5.678
+ },
+ "What limits apply to air pollutants from industrial installations?": {
+  "top10": [
+   104426,
+   257517,
+   201460,
+   832840,
+   257419,
+   257420,
+   257441,
+   832888,
+   257377,
+   104428
+  ],
+  "seconds": 7.241
+ },
+ "What are the requirements for protecting natural habitats?": {
+  "top10": [
+   38951,
+   868198,
+   956120,
+   868221,
+   38939,
+   38942,
+   38947,
+   999657,
+   38948,
+   743757
+  ],
+  "seconds": 3.525
+ },
+ "What targets exist for reducing greenhouse gas emissions from cars?": {
+  "top10": [
+   510136,
+   230076,
+   280113,
+   230126,
+   565723,
+   357426,
+   858143,
+   905538,
+   165385,
+   411225
+  ],
+  "seconds": 5.622
+ },
+ "What are the targets for renewable energy in the EU?": {
+  "top10": [
+   537760,
+   537790,
+   511219,
+   537821,
+   622653,
+   537816,
+   761063,
+   760871,
+   862798,
+   225486
+  ],
+  "seconds": 4.301
+ },
+ "What energy efficiency requirements apply to buildings?": {
+  "top10": [
+   831438,
+   831373,
+   831407,
+   831431,
+   429332,
+   760534,
+   303542,
+   986604,
+   687483,
+   831503
+  ],
+  "seconds": 5.807
+ },
+ "How is the internal market for electricity organised?": {
+  "top10": [
+   571531,
+   551222,
+   571527,
+   648911,
+   182657,
+   551188,
+   253568,
+   514081,
+   453592,
+   551183
+  ],
+  "seconds": 4.519
+ },
+ "What rules apply to the security of gas supply?": {
+  "top10": [
+   497635,
+   497567,
+   497596,
+   497533,
+   724690,
+   864133,
+   497556,
+   968845,
+   724695,
+   497568
+  ],
+  "seconds": 5.033
+ },
+ "What ecodesign requirements apply to energy-related products?": {
+  "top10": [
+   595780,
+   231901,
+   863419,
+   863534,
+   863532,
+   231948,
+   231904,
+   336418,
+   863536,
+   863515
+  ],
+  "seconds": 4.614
+ },
+ "What rights do air passengers have when a flight is cancelled?": {
+  "top10": [
+   145018,
+   145017,
+   145024,
+   269399,
+   269424,
+   169850,
+   145011,
+   145016,
+   145023,
+   145015
+  ],
+  "seconds": 10.154
+ },
+ "What are the rules on driving times and rest periods for truck drivers?": {
+  "top10": [
+   168992,
+   168973,
+   168977,
+   854064,
+   619968,
+   168990,
+   619982,
+   168991,
+   619967,
+   721727
+  ],
+  "seconds": 9.911
+ },
+ "What safety requirements apply to motor vehicles?": {
+  "top10": [
+   387511,
+   327449,
+   591373,
+   327716,
+   791500,
+   364300,
+   409492,
+   363498,
+   364292,
+   927062
+  ],
+  "seconds": 10.297
+ },
+ "What rights do rail passengers have when a train is delayed?": {
+  "top10": [
+   667366,
+   667399,
+   269424,
+   667374,
+   667363,
+   667367,
+   667392,
+   667398,
+   667397,
+   667390
+  ],
+  "seconds": 6.17
+ },
+ "What rules apply to the transport of dangerous goods by road?": {
+  "top10": [
+   392557,
+   597306,
+   822309,
+   698726,
+   429468,
+   506122,
+   544926,
+   467656,
+   429475,
+   392564
+  ],
+  "seconds": 13.515
+ },
+ "What anti-dumping duties apply to imports of steel products?": {
+  "top10": [
+   972637,
+   677334,
+   576145,
+   132138,
+   741520,
+   783964,
+   675611,
+   654141,
+   285039,
+   576128
+  ],
+  "seconds": 4.66
+ },
+ "How is the customs value of imported goods determined?": {
+  "top10": [
+   338277,
+   425881,
+   1062405,
+   1062397,
+   4888,
+   425874,
+   1062407,
+   338278,
+   425886,
+   1062418
+  ],
+  "seconds": 3.943
+ },
+ "What are the rules of origin for preferential tariffs?": {
+  "top10": [
+   338270,
+   1047485,
+   1062396,
+   315410,
+   549322,
+   4888,
+   424802,
+   315418,
+   1047466,
+   1047459
+  ],
+  "seconds": 7.131
+ },
+ "Which restrictive measures apply to Russia?": {
+  "top10": [
+   822620,
+   822611,
+   899051,
+   825994,
+   820804,
+   785220,
+   374638,
+   753083,
+   398314,
+   436385
+  ],
+  "seconds": 10.589
+ },
+ "What controls apply to the export of dual-use goods?": {
+  "top10": [
+   236378,
+   322650,
+   236379,
+   668315,
+   668270,
+   421579,
+   668291,
+   306218,
+   668255,
+   236409
+  ],
+  "seconds": 10.389
+ },
+ "What must be registered under the chemicals regulation?": {
+  "top10": [
+   177678,
+   177539,
+   177481,
+   177559,
+   177521,
+   260681,
+   177571,
+   260630,
+   699344,
+   145046
+  ],
+  "seconds": 15.962
+ },
+ "How must hazardous chemicals be classified and labelled?": {
+  "top10": [
+   619321,
+   217889,
+   260685,
+   217926,
+   888431,
+   218859,
+   888469,
+   177510,
+   217923,
+   352291
+  ],
+  "seconds": 7.966
+ },
+ "What restrictions apply to hazardous substances in electrical equipment?": {
+  "top10": [
+   599459,
+   177848,
+   278835,
+   177867,
+   750707,
+   319107,
+   788511,
+   599462,
+   177743,
+   237162
+  ],
+  "seconds": 3.957
+ },
+ "What are the rules for the CE marking of products?": {
+  "top10": [
+   863613,
+   198967,
+   863614,
+   550998,
+   989652,
+   484671,
+   198943,
+   444642,
+   785532,
+   888105
+  ],
+  "seconds": 2.329
+ },
+ "What requirements apply to toys sold in the EU?": {
+  "top10": [
+   989653,
+   230937,
+   989604,
+   989631,
+   230969,
+   989623,
+   989662,
+   989610,
+   989770,
+   230946
+  ],
+  "seconds": 5.862
+ },
+ "How is the Member State responsible for an asylum application determined?": {
+  "top10": [
+   855936,
+   154601,
+   981983,
+   108388,
+   856580,
+   856046,
+   855673,
+   855620,
+   855727,
+   856109
+  ],
+  "seconds": 13.535
+ },
+ "What are the rules on the European arrest warrant?": {
+  "top10": [
+   117825,
+   117826,
+   117821,
+   117835,
+   117824,
+   117827,
+   540865,
+   432550,
+   117828,
+   536850
+  ],
+  "seconds": 10.044
+ },
+ "Which court has jurisdiction in civil cases between parties in different Member States?": {
+  "top10": [
+   233328,
+   316632,
+   450830,
+   450918,
+   460032,
+   316622,
+   371430,
+   233305,
+   321833,
+   109969
+  ],
+  "seconds": 3.941
+ },
+ "What rights do victims of crime have?": {
+  "top10": [
+   301516,
+   278248,
+   301517,
+   301527,
+   301519,
+   278266,
+   890814,
+   831727,
+   143949,
+   301486
+  ],
+  "seconds": 1.936
+ },
+ "What conditions apply to visas for short stays in the Schengen area?": {
+  "top10": [
+   397931,
+   121937,
+   444461,
+   472282,
+   499786,
+   472283,
+   359981,
+   434094,
+   359976,
+   574609
+  ],
+  "seconds": 2.907
+ },
+ "What are the rules on the place of supply of services for VAT?": {
+  "top10": [
+   201203,
+   201199,
+   166763,
+   166753,
+   166764,
+   166832,
+   166760,
+   281312,
+   438498,
+   201198
+  ],
+  "seconds": 2.646
+ },
+ "Which exemptions from VAT exist?": {
+  "top10": [
+   166719,
+   395416,
+   655708,
+   426143,
+   426142,
+   655707,
+   946365,
+   272370,
+   959529,
+   166868
+  ],
+  "seconds": 2.591
+ },
+ "What thresholds apply to public procurement contracts?": {
+  "top10": [
+   876183,
+   199130,
+   358245,
+   465184,
+   347377,
+   231419,
+   593698,
+   757993,
+   724670,
+   724668
+  ],
+  "seconds": 5.72
+ },
+ "How are excise duties on alcohol and tobacco harmonised?": {
+  "top10": [
+   278767,
+   278784,
+   600458,
+   278775,
+   520123,
+   11248,
+   600447,
+   131251,
+   60211,
+   39149
+  ],
+  "seconds": 4.31
+ },
+ "What remedies exist for bidders in public procurement procedures?": {
+  "top10": [
+   543067,
+   358300,
+   358169,
+   358298,
+   38851,
+   724643,
+   666064,
+   390758,
+   38852,
+   231417
+  ],
+  "seconds": 2.228
+ }
+}

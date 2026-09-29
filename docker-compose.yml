@@ -7,6 +7,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-rag}
     
     shm_size: 2gb     # Docker's default of 64 MB is too small for pgvector's parallel HNSW build.
+    # Postgres's own cache. The 128 MB default cannot hold the 1.9 GB HNSW index,
+    # so searches kept re-reading it from disk (p50 at ef_search 160: 74 ms cold
+    # vs 17 ms warm). 2.5 GB fits the index inside Docker's ~6 GB.
+    command: ["postgres", "-c", "shared_buffers=2560MB"]
     ports:
       - "5432:5432"
     volumes:
