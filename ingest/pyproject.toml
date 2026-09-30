@@ -11,7 +11,7 @@ dependencies = [
     "numpy>=2.4.6",
     "pydantic-settings>=2.15.0",
     "httpx>=0.28.1",
-    "rich>=15.0.0",
+    "rich>=14",
     # PyTorch, for embedding on the M1 GPU: ~10x faster than the ONNX model in
     # fastembed on this machine, which would take days for a million chunks.
     "sentence-transformers>=5",

@@ -24,3 +24,9 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+[dependency-groups]
+eval = [
+    "instructor>=1.10",
+    "ragas>=0.4.3",
+]
