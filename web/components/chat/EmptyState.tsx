@@ -2,15 +2,15 @@
 
 import { ArrowUpRight } from "lucide-react";
 
-// Matched to the documents ingested so far: a question about something
-// outside the corpus has nothing to cite, and the answer says so.
+// Spread across areas of EU law to show the corpus is all acts in force, not
+// only digital regulation. Each has been checked to retrieve the right act.
 const EXAMPLES = [
-  { title: "Marking", question: "How should providers mark AI-generated content?" },
-  { title: "Copyright", question: "What are the copyright obligations for model providers?" },
-  { title: "Systemic risk", question: "What applies to models with systemic risk?" },
-  { title: "AI system", question: "What is the definition of an AI system?" },
-  { title: "Training data", question: "Do we need a public summary of training data?" },
-  { title: "Watermarks", question: "Can tools that strip watermarks be distributed?" },
+  { title: "Data protection", question: "When must a controller notify a personal data breach?" },
+  { title: "Artificial intelligence", question: "What obligations do providers of high-risk AI systems have?" },
+  { title: "Air travel", question: "What rights do air passengers have when a flight is cancelled?" },
+  { title: "Online platforms", question: "Can an online platform show targeted advertising to minors?" },
+  { title: "Pets", question: "What does my dog need to travel with me into the EU?" },
+  { title: "Work", question: "What is the maximum weekly working time for workers?" },
 ];
 
 export function EmptyState({ onPick }: { onPick: (question: string) => void }) {
@@ -19,11 +19,12 @@ export function EmptyState({ onPick }: { onPick: (question: string) => void }) {
     // overflowing content above the scroll origin, where it can't be reached.
     <div className="mx-auto my-auto w-full max-w-3xl px-4 py-10 sm:px-6">
       <h1 className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl">
-        Ask anything about EU AI and data regulation
+        Ask anything about EU law
       </h1>
       <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-muted">
-        Answers are grounded in the AI Office guidance and codes of practice ingested so far. Every claim
-        links to the passage it came from, opened in the original PDF at the right page.
+        Answers are grounded in all 43,106 EU acts currently in force, from the GDPR and the AI Act to
+        air passenger rights. Every claim links to the passage it came from, opened in the original PDF
+        at the right page.
       </p>
 
       <div className="mt-8 grid gap-2 sm:grid-cols-2">

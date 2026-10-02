@@ -5,7 +5,7 @@ description = "RAG at scale: retrieval and answer generation API"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.141.1",
-    # Queries are embedded in-process with the same model the corpus used.
+    # Gemini writes the answers.
     "langchain-google-genai>=4.4.0",
     "langsmith>=0.12.5",
     "numpy>=2.4.6",
@@ -15,8 +15,30 @@ dependencies = [
     # Shared response and embedding cache. The client speaks asyncio natively,
     # which the endpoints need.
     "redis>=5.2.1",
+    # Questions are embedded in-process with the same model as the corpus
+    # (bge-base-en-v1.5): ~30 ms on CPU, no network call, no quota.
+    "sentence-transformers>=5",
+    "slowapi>=0.1.10",
+    # Listed only so the source below applies: on Linux (the server image),
+    # take the CPU-only build. PyPI's Linux torch pulls ~3 GB of CUDA
+    # libraries the server has no GPU for. macOS keeps PyPI's build (MPS).
+    "torch",
     "uvicorn[standard]>=0.52.4",
 ]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[dependency-groups]
+eval = [
+    "instructor>=1.10",
+    "ragas>=0.4.3",
+]

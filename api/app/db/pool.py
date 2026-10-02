@@ -1,7 +1,7 @@
 from psycopg.rows import dict_row
 from psycopg_pool import AsyncConnectionPool
 
-from .config import settings
+from ..core.config import settings
 
 pool = AsyncConnectionPool(
     conninfo=settings.database_url,

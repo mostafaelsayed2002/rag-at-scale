@@ -6,7 +6,8 @@ from pathlib import Path
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ROOT = Path(__file__).resolve().parents[2]
+# api/app/core/config.py -> repository root.
+ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
@@ -26,11 +27,16 @@ class Settings(BaseSettings):
     cache_ttl: int = 3600
     data_dir: Path = ROOT / "data"
 
-    # --- Gemini ---
-    google_api_key: str = Field(min_length=1)
-    # Must match the model the corpus was embedded with.
-    embedding_model: str = "models/gemini-embedding-2"
+    # --- Embeddings (local) ---
+    # Must match the model the corpus was embedded with (ingest/config.py).
+    embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768
+    # bge was trained with this prefix on queries (never on passages).
+    query_prefix: str = "Represent this sentence for searching relevant passages: "
+    embedding_device: str = "cpu"  # one short question: ~30 ms on CPU
+
+    # --- Gemini (answers) ---
+    google_api_key: str = Field(min_length=1)
     # Cheapest tier is enough: answers come from the retrieved passages.
     llm_model: str = "gemini-3.5-flash-lite"
     llm_temperature: float = 0.0  # same question, same (cacheable) answer
@@ -39,6 +45,9 @@ class Settings(BaseSettings):
 
     # --- Retrieval ---
     retrieve_k: int = 6  # passages sent to the model; more adds cost and noise
+    # HNSW candidates per search: 99% recall@10 at ~12 ms on 1.06M chunks;
+    # recall plateaus above it (benchmarks_hnsw/).
+    hnsw_ef_search: int = 160
 
     # --- Cost estimate (USD per 1M tokens) ---
     # https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-flash-lite
@@ -50,6 +59,9 @@ class Settings(BaseSettings):
     langsmith_api_key: str | None = None
     langsmith_project: str = "rag-at-scale"
     langsmith_endpoint: str = "https://api.smith.langchain.com"
+
+    # --- Rate limiting (per client IP, on /chat) ---
+    rate_limit: str = "10/minute"
 
     # --- Web ---
     # Dev frontend only; in production it is same-origin behind nginx.

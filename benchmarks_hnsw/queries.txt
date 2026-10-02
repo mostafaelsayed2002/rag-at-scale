@@ -1,0 +1,144 @@
+# 100 benchmark questions for measuring HNSW against exact search.
+# Spread over many areas of EU law on purpose: questions from one topic would
+# all land in one small region of the vector space and flatter the index.
+# One question per line; lines starting with # are ignored.
+
+# Data protection and privacy
+When must a controller notify a personal data breach to the supervisory authority?
+What rights does a data subject have to access their personal data?
+Under what conditions can personal data be transferred to a third country?
+When is a data protection impact assessment required?
+What are the rules on processing health data?
+
+# Artificial intelligence
+What obligations do providers of high-risk AI systems have?
+Which AI practices are prohibited in the European Union?
+What transparency obligations apply to AI systems that interact with people?
+Is a public summary of training data required for general-purpose AI models?
+What penalties apply for breaching the AI rules?
+
+# Digital services and platforms
+Can an online platform show targeted advertising to minors?
+What must very large online platforms do to assess systemic risks?
+How should hosting services handle notices of illegal content?
+What obligations do gatekeepers have under the digital markets rules?
+Are online marketplaces required to trace the traders who sell on them?
+
+# Cybersecurity and telecommunications
+Which entities must report significant cybersecurity incidents?
+What are the rules on roaming charges within the EU?
+What cybersecurity requirements apply to connected products?
+How must electronic communications providers protect the confidentiality of communications?
+What is the role of the EU cybersecurity agency?
+
+# Consumer protection
+How long is the withdrawal period for goods bought online?
+What information must a trader give before a consumer signs a distance contract?
+Which commercial practices are considered unfair to consumers?
+What are the rules on product safety for consumer goods?
+What guarantee rights does a consumer have for faulty goods?
+
+# Competition and State aid
+When must a merger be notified to the European Commission?
+What counts as abuse of a dominant position?
+Under which conditions is State aid compatible with the internal market?
+Which agreements between competitors are prohibited?
+What State aid can be given to repair damage caused by natural disasters?
+
+# Financial services
+What capital requirements apply to credit institutions?
+What rules apply to crypto-asset service providers?
+What must be disclosed in a prospectus for securities offered to the public?
+What are the obligations of banks to prevent money laundering?
+How are deposits protected if a bank fails?
+
+# Employment and social policy
+What is the maximum weekly working time for workers?
+What are the rights of posted workers?
+How much paid annual leave are workers entitled to?
+What protection do pregnant workers have at work?
+How is social security coordinated for people who move between Member States?
+
+# Health, medicines and medical devices
+What is required to place a medicinal product on the market?
+What are the rules for clinical trials on medicinal products?
+How are medical devices classified by risk?
+What rules apply to the cross-border healthcare of patients?
+What are the requirements for blood and blood components?
+
+# Food safety and labelling
+What information must appear on food labels?
+What are the maximum levels of contaminants allowed in food?
+Which food additives are authorised?
+What rules apply to novel foods?
+How must allergens be indicated on food?
+
+# Agriculture and rural development
+What direct payments can farmers receive under the common agricultural policy?
+How is organic production defined and labelled?
+What are the rules on protected designations of origin for wine?
+What measures support the market for milk and milk products?
+How are plant protection products approved?
+
+# Animal health and welfare
+What does my dog need to travel with me into the EU from another country?
+What are the welfare rules for animals during transport?
+How must animals be stunned before slaughter?
+What measures apply to control African swine fever?
+What are the requirements for identification of cattle?
+
+# Fisheries and maritime
+What are the fishing opportunities for cod in the Baltic Sea?
+What is the minimum size of fish that may be landed?
+How are fishing vessels monitored by satellite?
+What rules apply to fishing in the waters of third countries?
+What is the landing obligation for catches?
+
+# Environment and climate
+How does the EU emissions trading system work?
+What are the rules on the shipment of waste?
+What limits apply to air pollutants from industrial installations?
+What are the requirements for protecting natural habitats?
+What targets exist for reducing greenhouse gas emissions from cars?
+
+# Energy
+What are the targets for renewable energy in the EU?
+What energy efficiency requirements apply to buildings?
+How is the internal market for electricity organised?
+What rules apply to the security of gas supply?
+What ecodesign requirements apply to energy-related products?
+
+# Transport
+What rights do air passengers have when a flight is cancelled?
+What are the rules on driving times and rest periods for truck drivers?
+What safety requirements apply to motor vehicles?
+What rights do rail passengers have when a train is delayed?
+What rules apply to the transport of dangerous goods by road?
+
+# Customs, trade and external relations
+What anti-dumping duties apply to imports of steel products?
+How is the customs value of imported goods determined?
+What are the rules of origin for preferential tariffs?
+Which restrictive measures apply to Russia?
+What controls apply to the export of dual-use goods?
+
+# Chemicals and industry
+What must be registered under the chemicals regulation?
+How must hazardous chemicals be classified and labelled?
+What restrictions apply to hazardous substances in electrical equipment?
+What are the rules for the CE marking of products?
+What requirements apply to toys sold in the EU?
+
+# Justice, migration and fundamental rights
+How is the Member State responsible for an asylum application determined?
+What are the rules on the European arrest warrant?
+Which court has jurisdiction in civil cases between parties in different Member States?
+What rights do victims of crime have?
+What conditions apply to visas for short stays in the Schengen area?
+
+# Taxation and public procurement
+What are the rules on the place of supply of services for VAT?
+Which exemptions from VAT exist?
+What thresholds apply to public procurement contracts?
+How are excise duties on alcohol and tobacco harmonised?
+What remedies exist for bidders in public procurement procedures?

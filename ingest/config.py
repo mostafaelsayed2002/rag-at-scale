@@ -4,7 +4,7 @@ Values come from the environment or the repository's .env file, with the
 defaults below used when neither sets them. Anything here can be overridden
 for one run without editing code:
 
-    EMBED_TEXTS_PER_MINUTE=2000 uv run python ingest/ingest.py
+    CHUNK_CHARS=1200 uv run --package rag-ingest python ingest/ingest.py chunk --count-only
 """
 
 from functools import lru_cache
@@ -23,27 +23,42 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # Optional here: only the embedding step needs it, and it checks on first use.
-    google_api_key: str | None = None
+    # --- Corpus (written by download.py) ---
+    corpus_dir: Path = ROOT / "data" / "eurlex"
 
-    # Google's cheapest embedding model: $0.20 per million text tokens, with a
-    # free tier. Reads up to 8,192 tokens per text.
-    embedding_model: str = "models/gemini-embedding-2"
+    # --- Chunking ---
+    # Characters, not tokens: ~1,600 characters of legal English is ~360
+    # tokens, comfortably under the embedding model's 512-token limit.
+    chunk_chars: int = 1600
+    overlap_chars: int = 200
+    # Documents per shard file. Resuming works shard by shard, so smaller is
+    # finer-grained; larger means fewer files.
+    shard_docs: int = 500
 
-    # Gemini can return any size from 128 to 3072; 768 is the smallest
-    # recommended one. Must match the vector column in db/migrations.
+    # --- Embedding ---
+    # Local, free, no quota. Must be the same model the API embeds queries with.
+    embedding_model: str = "BAAI/bge-base-en-v1.5"
     embedding_dim: int = 768
+    # The model reads at most 512 tokens and silently drops the rest, so
+    # chunks longer than this are split again before embedding.
+    max_tokens: int = 512
+    embed_batch: int = 32
 
-    # Texts per API call. The API's own maximum is 100.
-    embed_batch: int = 100
+    # Only the load stage needs it, so chunking and counting work without a database.
+    database_url: str | None = None
 
-    # Free-tier quota is about 100 texts a minute. Raise this once billing is
-    # enabled on the project, or the corpus takes hours.
-    embed_texts_per_minute: int = 90
+    @property
+    def pdf_dir(self) -> Path:
+        return self.corpus_dir / "pdf"
 
-    database_url: str
+    @property
+    def acts_file(self) -> Path:
+        return self.corpus_dir / "acts.jsonl"
 
-    data_dir: Path = ROOT / "data"
+    @property
+    def work_dir(self) -> Path:
+        """Where the stages hand over to each other: chunks, then vectors."""
+        return self.corpus_dir / "work"
 
 
 @lru_cache(maxsize=1)

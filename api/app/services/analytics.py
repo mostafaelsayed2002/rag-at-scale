@@ -5,7 +5,7 @@ Only real measurements are shown; cost is the one estimate (tokens x price).
 
 import logging
 
-from .config import settings
+from ..core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -153,10 +153,7 @@ async def overview(pool, hours: int = 24) -> dict:
             "embedding_model": settings.embedding_model,
             "embedding_dim": settings.embedding_dim,
             "llm_model": settings.llm_model,
-            # Honest about what the search actually is: there is no ANN index
-            # on the table, so every query scans every embedded chunk. At this
-            # corpus size that is fast, and claiming HNSW would be a lie.
-            "index": "exact scan (no ANN index)",
+            "index": f"HNSW (m=16, ef_construction=64), ef_search={settings.hnsw_ef_search}",
             "retrieve_k": settings.retrieve_k,
         },
         "slowest": [

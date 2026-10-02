@@ -1,170 +1,141 @@
-"""Write documents and their chunks into Postgres.
+"""Write documents, chunks and their vectors into Postgres.
 
-One transaction per document: either all of its chunks land or none do, so an
-interrupted run never leaves a half-ingested document behind.
+One transaction per shard: either all of a shard's documents land or none do,
+so an interrupted load never leaves a half-loaded document behind.
 """
 
-import logging
-from collections.abc import Iterable, Iterator
-from itertools import islice
+from collections.abc import Iterable
 
 import numpy as np
 import psycopg
 from config import settings
 from models import Chunk, DocumentInfo
 
-logger = logging.getLogger(__name__)
+# Readable groups for the resource types, used as the documents' collection.
+COLLECTIONS = {"REG": "Regulation", "DIR": "Directive", "DEC": "Decision", "RECO": "Recommendation"}
 
-# Rows per COPY batch. Large enough to amortise the round trip, small enough
-# that one batch of 768-dimension vectors stays a few megabytes.
-COPY_BATCH = 500
+
+class SchemaError(RuntimeError):
+    pass
 
 
 def connect() -> psycopg.Connection:
-    """Connect in autocommit mode.
-
-    Without it, psycopg holds one transaction open for the whole session and
-    the `conn.transaction()` blocks below become savepoints inside it, so
-    nothing is durable until the program exits: an interrupted run loses
-    every document. With autocommit, each of those blocks is a real
-    transaction that commits as soon as its document is stored.
-    """
+    """Autocommit, so each `conn.transaction()` below is a real transaction that
+    commits when its shard is stored, not a savepoint inside one long session."""
+    if not settings.database_url:
+        raise SchemaError("DATABASE_URL is not set (in .env or the environment).")
     return psycopg.connect(settings.database_url, autocommit=True)
 
 
-def vector_literal(vector: np.ndarray) -> str:
-    """pgvector's text form: [0.1,-0.2,...]. Six decimals is far more than
-    float32 carries, so nothing is lost and rows stay compact."""
-    if vector.shape != (settings.embedding_dim,):
-        raise ValueError(f"expected a {settings.embedding_dim}-dimension vector, got {vector.shape}")
-    return "[" + ",".join(f"{value:.6f}" for value in vector) + "]"
-
-
-def is_unchanged(conn: psycopg.Connection, doc: DocumentInfo) -> bool:
-    """True if this exact file has already been ingested.
-
-    The check is the content hash, not the name or the date, so a re-downloaded
-    but identical file is skipped and an edited one is re-ingested.
-    """
+def check_schema(conn: psycopg.Connection) -> None:
+    """Fail early and clearly if the database still has the old schema."""
     row = conn.execute(
-        "SELECT sha256 FROM documents WHERE doc_id = %s",
-        (doc.doc_id,),
-    ).fetchone()
-    return row is not None and row[0] == doc.sha256
-
-
-def upsert_document(conn: psycopg.Connection, doc: DocumentInfo, chunk_count: int) -> None:
-    """Insert the document, or update it if it is being re-ingested."""
-    extra = doc.extra
-    conn.execute(
         """
-        INSERT INTO documents (
-            doc_id, title, source_url, source_organization, document_type,
-            celex_number, collection, publication_date, sha256, page_count,
-            chunk_count, ingested_at
+        SELECT format_type(a.atttypid, a.atttypmod)
+        FROM pg_attribute a
+        WHERE a.attrelid = to_regclass('chunks') AND a.attname = 'embedding'
+        """
+    ).fetchone()
+    expected = f"halfvec({settings.embedding_dim})"
+    if row is None or row[0] != expected:
+        found = row[0] if row else "no chunks table"
+        raise SchemaError(
+            f"chunks.embedding is {found}, expected {expected}. Recreate the "
+            "documents and chunks tables from db/migrations/001_init.sql."
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
-        ON CONFLICT (doc_id) DO UPDATE SET
-            title = EXCLUDED.title,
-            source_url = EXCLUDED.source_url,
-            source_organization = EXCLUDED.source_organization,
-            document_type = EXCLUDED.document_type,
-            celex_number = EXCLUDED.celex_number,
-            collection = EXCLUDED.collection,
-            publication_date = EXCLUDED.publication_date,
-            sha256 = EXCLUDED.sha256,
-            page_count = EXCLUDED.page_count,
-            chunk_count = EXCLUDED.chunk_count,
-            ingested_at = now()
-        """,
-        (
-            doc.doc_id,
-            doc.title,
-            doc.source_url,
-            extra.get("source_organization"),
-            extra.get("document_type"),
-            extra.get("celex_number"),
-            extra.get("collection"),
-            extra.get("publication_date"),
-            doc.sha256,
-            doc.page_count,
-            chunk_count,
-        ),
-    )
 
 
-def _batched(items: Iterable, size: int) -> Iterator[list]:
-    iterator = iter(items)
-    while batch := list(islice(iterator, size)):
-        yield batch
+def stored_hashes(conn: psycopg.Connection) -> dict[str, str]:
+    return dict(conn.execute("SELECT doc_id, sha256 FROM documents").fetchall())
 
 
-def replace_chunks(
+def halfvec(vector: np.ndarray) -> str:
+    """pgvector's text form. Five decimals: more than half precision keeps."""
+    return "[" + ",".join(f"{v:.5f}" for v in vector.astype(np.float32)) + "]"
+
+
+def pg_text(value: str | None) -> str | None:
+    """Postgres text cannot hold NUL (0x00) bytes, which a few PDFs' text
+    layers contain (broken fonts, OCR). They carry no meaning, so drop them."""
+    return value.replace("\x00", "") if value else value
+
+
+def collection(act_type: str | None) -> str:
+    base = (act_type or "").split("_")[0]
+    return COLLECTIONS.get(base, "Other")
+
+
+def store_shard(
     conn: psycopg.Connection,
-    doc_id: str,
-    pairs: Iterable[tuple[Chunk, np.ndarray]],
+    docs: list[DocumentInfo],
+    chunks: list[Chunk],
+    vectors: np.ndarray,
 ) -> int:
-    """Delete this document's chunks and write the new ones.
+    """Replace these documents and their chunks in one transaction.
 
     Delete-then-insert rather than updating in place: chunk boundaries move
-    when the text or the chunk size changes, so old chunk numbers have no
-    meaning. COPY rather than INSERT, because it is several times faster for
-    thousands of rows.
+    when the text or chunk size changes, so old chunk numbers mean nothing.
+    COPY rather than INSERT, because it is many times faster for bulk rows.
     """
-    conn.execute("DELETE FROM chunks WHERE doc_id = %s", (doc_id,))
-
-    written = 0
-    columns = "doc_id, chunk_index, text, page_start, page_end, embedding"
-    for batch in _batched(pairs, COPY_BATCH):
-        with conn.cursor().copy(f"COPY chunks ({columns}) FROM STDIN") as copy:
-            for chunk, vector in batch:
-                copy.write_row(
-                    (
-                        doc_id,
-                        chunk.index,
-                        chunk.text,
-                        chunk.page_start,
-                        chunk.page_end,
-                        vector_literal(vector),
-                    )
-                )
-        written += len(batch)
-    return written
-
-
-def store_document(
-    conn: psycopg.Connection,
-    doc: DocumentInfo,
-    pairs: Iterable[tuple[Chunk, np.ndarray]],
-) -> int:
-    """Store one document and its chunks in a single transaction.
-
-    The document row goes first: chunks reference it, so inserting them before
-    it exists fails the foreign key. The chunk count is filled in afterwards,
-    once the chunks are actually written.
-    """
+    ids = [d.doc_id for d in docs]
+    wanted = set(ids)
+    rows: Iterable[tuple] = (
+        (c.doc_id, c.index, pg_text(c.text), c.page_start, c.page_end, c.tokens, halfvec(v))
+        for c, v in zip(chunks, vectors, strict=True)
+        if c.doc_id in wanted
+    )
     with conn.transaction():
-        upsert_document(conn, doc, chunk_count=0)
-        written = replace_chunks(conn, doc.doc_id, pairs)
-        conn.execute(
-            "UPDATE documents SET chunk_count = %s WHERE doc_id = %s",
-            (written, doc.doc_id),
-        )
-    logger.info("stored %s: %d chunks", doc.doc_id, written)
+        conn.execute("DELETE FROM chunks WHERE doc_id = ANY(%s)", (ids,))
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                INSERT INTO documents (
+                    doc_id, title, source_url, source_organization, document_type,
+                    celex_number, collection, publication_date, topics, sha256,
+                    page_count, chunk_count, ingested_at
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, now())
+                ON CONFLICT (doc_id) DO UPDATE SET
+                    title = EXCLUDED.title,
+                    source_url = EXCLUDED.source_url,
+                    document_type = EXCLUDED.document_type,
+                    collection = EXCLUDED.collection,
+                    publication_date = EXCLUDED.publication_date,
+                    topics = EXCLUDED.topics,
+                    sha256 = EXCLUDED.sha256,
+                    page_count = EXCLUDED.page_count,
+                    chunk_count = EXCLUDED.chunk_count,
+                    ingested_at = now()
+                """,
+                [
+                    (
+                        d.doc_id,
+                        pg_text(d.title),
+                        f"https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:{d.doc_id}",
+                        "EU Publications Office",
+                        d.act_type,
+                        d.doc_id,
+                        collection(d.act_type),
+                        d.date,
+                        d.topics,
+                        d.sha256,
+                        d.page_count,
+                        d.chunk_count,
+                    )
+                    for d in docs
+                ],
+            )
+        written = 0
+        columns = "doc_id, chunk_index, text, page_start, page_end, tokens, embedding"
+        with conn.cursor().copy(f"COPY chunks ({columns}) FROM STDIN") as copy:
+            for row in rows:
+                copy.write_row(row)
+                written += 1
     return written
 
 
 def corpus_stats(conn: psycopg.Connection) -> dict[str, int]:
     row = conn.execute(
-        """
-        SELECT (SELECT count(*) FROM documents),
-               (SELECT count(*) FROM chunks),
-               (SELECT count(*) FROM chunks WHERE embedding IS NULL)
-        """
+        "SELECT (SELECT count(*) FROM documents), (SELECT count(*) FROM chunks)"
     ).fetchone()
-    return {"documents": row[0], "chunks": row[1], "chunks_without_embedding": row[2]}
-
-
-if __name__ == "__main__":
-    with connect() as conn:
-        print(corpus_stats(conn))
+    return {"documents": row[0], "chunks": row[1]}

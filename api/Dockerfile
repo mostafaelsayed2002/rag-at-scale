@@ -37,4 +37,7 @@ EXPOSE 8000
 
 # 0.0.0.0 is the part that matters: uvicorn defaults to localhost, which inside
 # a container means the container itself, unreachable from Compose or Caddy.
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# --proxy-headers: behind nginx every request comes from nginx's address, so
+# the client IP (used for rate limiting) is read from X-Forwarded-For instead.
+# Safe because the API port is only reachable through nginx, never directly.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
