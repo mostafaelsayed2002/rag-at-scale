@@ -1,0 +1,18 @@
+# The site's front door. Caddy gets and renews the HTTPS certificate for
+# SITE_DOMAIN by itself (Let's Encrypt), as soon as DNS points here.
+
+{$SITE_DOMAIN} {
+	# Compress text responses (JSON, HTML, JS). PDFs are already compressed.
+	encode zstd gzip
+
+	# The web app calls the API at /api/...; the API's own routes have no
+	# prefix (/health, /chat, /documents). handle_path strips /api on the way.
+	handle_path /api/* {
+		reverse_proxy api:8000
+	}
+
+	# Everything else is the Next.js app.
+	handle {
+		reverse_proxy web:3000
+	}
+}

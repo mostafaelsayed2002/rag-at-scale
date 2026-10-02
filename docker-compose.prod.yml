@@ -1,22 +1,48 @@
-# Production stack. Pulls prebuilt images instead of building, and publishes
-# no ports: the server's existing nginx is the only thing facing the internet.
+# Production stack for a server of its own (Oracle Cloud, ARM64). Pulls
+# prebuilt images instead of building. Caddy is the only service facing the
+# internet: it serves HTTPS and gets its certificates by itself.
 #
 #   docker compose -f docker-compose.prod.yml pull
 #   docker compose -f docker-compose.prod.yml up -d
 #
-# Values come from a .env file sitting next to this one on the server.
+# Values come from the environment of the shell that runs it (the deploy job
+# passes them inline) or from a .env file next to this one.
 
 services:
+  caddy:
+    image: caddy:2-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      SITE_DOMAIN: ${SITE_DOMAIN:?set SITE_DOMAIN, e.g. rag.example.com}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates live here. Losing them means asking Let's Encrypt again,
+      # which is rate-limited, so they get a volume of their own.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - web
+    restart: unless-stopped
+
   postgres:
     image: pgvector/pgvector:pg16
+    # The 1.9 GB HNSW index has to stay in memory for fast search: 128 MB (the
+    # default) would read it from disk on every query. pg_prewarm reloads the
+    # cached pages after a restart.
+    command: ["postgres", "-c", "shared_buffers=2560MB", "-c", "shared_preload_libraries=pg_prewarm"]
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-rag}
       # No default: Compose refuses to start if this is missing, rather than
       # running with a guessable password.
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-rag}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      # Only used when the volume is empty (a fresh database).
       - ./db/migrations:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-rag} -d ${POSTGRES_DB:-rag}"]
@@ -24,18 +50,11 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
-    networks:
-      # Internal only. The shared network already has a container answering to
-      # "postgres", and two containers with one name is a coin flip.
-      internal:
-        aliases:
-          - rag-postgres
 
   redis:
     image: redis:7-alpine
-    # maxmemory plus an eviction policy is the part that matters on a shared
-    # server: Redis drops the least recently used entries instead of growing
-    # until the host runs out of memory.
+    # A memory cap plus an eviction policy: Redis drops the least recently
+    # used entries instead of growing until the host runs out of memory.
     command:
       - redis-server
       - --appendonly
@@ -52,63 +71,48 @@ services:
       timeout: 3s
       retries: 10
     restart: unless-stopped
-    networks:
-      # Private network only. An unauthenticated Redis reachable from the
-      # shared network would be an open door.
-      internal:
-        aliases:
-          - rag-redis
 
   api:
     # TAG is a commit hash in a real deploy, which is what makes rollback
     # a matter of changing one value and restarting.
-    image: ghcr.io/${OWNER:?set OWNER in .env}/rag-api:${TAG:-latest}
+    image: ghcr.io/${OWNER:?set OWNER}/rag-api:${TAG:-latest}
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@rag-postgres:5432/${POSTGRES_DB:-rag}
-      GOOGLE_API_KEY: ${GOOGLE_API_KEY:?set GOOGLE_API_KEY in .env}
-      REDIS_URL: redis://rag-redis:6379/0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rag}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY:?set GOOGLE_API_KEY}
+      REDIS_URL: redis://redis:6379/0
       LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
       LANGSMITH_PROJECT: ${LANGSMITH_PROJECT:-rag-at-scale}
       LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT:-https://api.smith.langchain.com}
+      CORS_ORIGINS: '["https://${SITE_DOMAIN}"]'
       DATA_DIR: /app/data
+      # The embedding model is downloaded once into the volume below; after
+      # that there is no reason to ask Hugging Face on every start.
+      HF_HOME: /models
     volumes:
       # The corpus PDFs, copied to the server with rsync rather than baked into
-      # the image: data/ is not in git, so CI cannot put them there, and an
-      # 80 MB corpus in every image would slow each deploy.
+      # the image: 25 GB, and not in git.
       - ./data:/app/data:ro
+      - models:/models
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
     restart: unless-stopped
-    networks:
-      # Both: the database over the private network, nginx over the shared one.
-      internal:
-      edge:
-        aliases:
-          - rag-api
 
   web:
-    image: ghcr.io/${OWNER:?set OWNER in .env}/rag-web:${TAG:-latest}
+    image: ghcr.io/${OWNER:?set OWNER}/rag-web:${TAG:-latest}
     depends_on:
       - api
     restart: unless-stopped
-    networks:
-      edge:
-        aliases:
-          - rag-web
 
-networks:
-  # Created by this project, reachable only by its own containers.
-  internal:
-  # Created by the blog's compose project. "external" means use the existing
-  # one rather than making another.
-  edge:
-    external: true
-    name: blog_default
+# No networks section: the default network is private to this project, and
+# only Caddy publishes ports. Postgres and Redis are unreachable from outside.
 
 volumes:
   pgdata:
   redisdata:
+  models:
+  caddy_data:
+  caddy_config:

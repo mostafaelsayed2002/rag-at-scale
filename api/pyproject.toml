@@ -19,11 +19,23 @@ dependencies = [
     # (bge-base-en-v1.5): ~30 ms on CPU, no network call, no quota.
     "sentence-transformers>=5",
     "slowapi>=0.1.10",
+    # Listed only so the source below applies: on Linux (the server image),
+    # take the CPU-only build. PyPI's Linux torch pulls ~3 GB of CUDA
+    # libraries the server has no GPU for. macOS keeps PyPI's build (MPS).
+    "torch",
     "uvicorn[standard]>=0.52.4",
 ]
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
 
 [dependency-groups]
 eval = [
