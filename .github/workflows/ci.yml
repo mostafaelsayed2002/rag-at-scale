@@ -1,7 +1,8 @@
 name: CI
 
+# Only on pull requests: with "push" too, every push to a PR branch ran CI
+# twice on the same commit. Merges to main are covered by CD.
 on:
-  push:
   pull_request:
 
 jobs:
