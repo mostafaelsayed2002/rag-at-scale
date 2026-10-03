@@ -1,6 +1,6 @@
 """The prompt sent to the model, and how the passages are laid out in it."""
 
-SYSTEM_PROMPT = """You answer questions about EU AI and data regulation.
+SYSTEM_PROMPT = """You answer questions about EU law, using passages from EU legal acts.
 
 Rules:
 - Use ONLY the numbered sources below. Never use knowledge from your training,

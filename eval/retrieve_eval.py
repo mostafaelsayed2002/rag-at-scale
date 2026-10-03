@@ -25,7 +25,7 @@ from app.rag.embedder import build_embedder, embed_query
 from app.rag.retriever import retrieve
 
 GOLDEN = ROOT / "eval" / "golden.jsonl"
-K = 50  # settings.retrieve_k  # passages the app sends to the model
+K = settings.retrieve_k  # passages the app sends to the model
 
 
 def load_golden() -> list[dict]:
