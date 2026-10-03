@@ -45,6 +45,16 @@ class Settings(BaseSettings):
 
     # --- Retrieval ---
     retrieve_k: int = 6  # passages sent to the model; more adds cost and noise
+    # The vector search fetches this many, the reranker keeps the best
+    # retrieve_k. The right chunk was in the top 50 for 65% of the golden
+    # questions but in the top 6 for only 26%.
+    rerank_candidates: int = 20
+    # A cross-encoder: reads question and passage together, so it judges
+    # "does this answer it" rather than "does this sound similar".
+    rerank_model: str = "BAAI/bge-reranker-base"
+    # Question + passage tokens the reranker reads. 512 (the model's maximum)
+    # took 2.4 s per question on 20 candidates.
+    rerank_max_tokens: int = 256
     # HNSW candidates per search: 99% recall@10 at ~12 ms on 1.06M chunks;
     # recall plateaus above it (benchmarks_hnsw/).
     hnsw_ef_search: int = 160

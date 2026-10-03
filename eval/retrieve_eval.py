@@ -10,6 +10,7 @@ top k results.
 import asyncio
 import json
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,11 +18,13 @@ sys.path.insert(0, str(ROOT / "api"))
 
 
 from langsmith import tracing_context
+from tqdm import tqdm
 
 
 from app.core.config import settings
 from app.db.pool import pool
 from app.rag.embedder import build_embedder, embed_query
+from app.rag.reranker import build_reranker, rerank
 from app.rag.retriever import retrieve
 
 GOLDEN = ROOT / "eval" / "golden.jsonl"
@@ -60,15 +63,24 @@ async def main() -> None:
     """
     golden = load_golden()
     await pool.open()
+    print("loading the embedder...")
     model = build_embedder()
+    print(f"loading the reranker ({settings.rerank_model})...")
+    reranker = build_reranker()
+    print(f"searching: top {settings.rerank_candidates} candidates, reranked to {K}")
 
     hits = 0
     reciprocal_ranks = 0.0
-    # Kept out of LangSmith: 100 eval
+    rerank_seconds = 0.0
+    # Kept out of LangSmith: 100 eval runs would bury the real traces.
     with tracing_context(enabled=False):
-        for question in golden:
+        for question in tqdm(golden, desc="questions"):
             vector = await embed_query(model, question["question"])
-            results = await retrieve(vector, K)
+            # Same steps as the app: fetch the candidates, keep the best K.
+            candidates = await retrieve(vector, settings.rerank_candidates)
+            start = time.perf_counter()
+            results = await rerank(reranker, question["question"], candidates, K)
+            rerank_seconds += time.perf_counter() - start
             retrieved = [result["chunk_id"] for result in results]
 
             rank = first_rank(retrieved, question["chunk_ids"])
@@ -80,6 +92,7 @@ async def main() -> None:
     print(f"{len(golden)} questions, top {K}")
     print(f"Hit@{K}: {hits / len(golden):.2f}")
     print(f"MRR@{K}: {reciprocal_ranks / len(golden):.2f}")
+    print(f"rerank: {rerank_seconds / len(golden) * 1000:.0f} ms per question")
 
 
 if __name__ == "__main__":

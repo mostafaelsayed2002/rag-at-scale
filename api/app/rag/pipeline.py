@@ -1,4 +1,4 @@
-"""The RAG pipeline: cache → embed → retrieve → generate.
+"""The RAG pipeline: cache → embed → retrieve → rerank → generate.
 
 No HTTP here. The chat route calls answer() and handles the request around it.
 """
@@ -7,13 +7,14 @@ from dataclasses import dataclass, field
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langsmith import get_current_run_tree, traceable
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import CrossEncoder, SentenceTransformer
 
 from ..core.config import settings
 from ..core.timing import Stopwatch
 from ..services.cache import Cache
 from .embedder import embed_query
 from .generator import answer_question
+from .reranker import rerank
 from .retriever import retrieve
 from .types import Answer
 
@@ -36,23 +37,29 @@ class RagPipeline:
         self,
         cache: Cache,
         embedder: SentenceTransformer,
+        reranker: CrossEncoder,
         llm: ChatGoogleGenerativeAI,
     ):
         self.cache = cache
         self.embedder = embedder
+        self.reranker = reranker
         self.llm = llm
 
-    # One LangSmith trace per question; embed, retrieve and answer_question nest inside.
+    # One LangSmith trace per question; embed, retrieve, rerank and answer_question nest inside.
     @traceable(
         run_type="chain",
         name="chat",
         process_inputs=lambda inputs: {"query": inputs.get("query")},
-        metadata={"llm_model": settings.llm_model, "retrieve_k": settings.retrieve_k},
+        metadata={
+            "llm_model": settings.llm_model,
+            "retrieve_k": settings.retrieve_k,
+            "rerank_model": settings.rerank_model,
+        },
     )
     async def answer(self, query: str, run: ChatRun) -> Answer:
-        # The model and k belong in the key: change either and the stored
+        # The models and k belong in the key: change any of them and the stored
         # answer is no longer the one this configuration would produce.
-        fingerprint = f"{settings.llm_model}:{settings.retrieve_k}:{query}"
+        fingerprint = f"{settings.llm_model}:{settings.rerank_model}:{settings.retrieve_k}:{query}"
         stored = await self.cache.get(fingerprint)
         run.cache_hit = stored is not None
         # Lets LangSmith filter cached answers from generated ones.
@@ -65,7 +72,9 @@ class RagPipeline:
         with run.clock("embedding"):
             vector = await embed_query(self.embedder, query)
         with run.clock("retrieval"):
-            chunks = await retrieve(vector, settings.retrieve_k)
+            candidates = await retrieve(vector, settings.rerank_candidates)
+        with run.clock("rerank"):
+            chunks = await rerank(self.reranker, query, candidates, settings.retrieve_k)
         with run.clock("generation"):
             answer = await answer_question(self.llm, query, chunks)
 

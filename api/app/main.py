@@ -23,6 +23,7 @@ from .core.rate_limit import limiter
 from .core.tracing import configure as configure_tracing
 from .db.pool import pool
 from .rag.embedder import build_embedder, embed_query
+from .rag.reranker import build_reranker
 from .rag.generator import build_llm
 from .rag.pipeline import RagPipeline
 from .rag.retriever import retrieve
@@ -45,7 +46,9 @@ async def lifespan(app: FastAPI):
     # (measured: first search 1,751 ms, then 5-8 ms). Kept out of LangSmith.
     with tracing_context(enabled=False):
         await retrieve(await embed_query(embedder, "warm up"), settings.retrieve_k)
-    app.state.pipeline = RagPipeline(cache=cache, embedder=embedder, llm=build_llm())
+    app.state.pipeline = RagPipeline(
+        cache=cache, embedder=embedder, reranker=build_reranker(), llm=build_llm()
+    )
     yield
     await pool.close()
     await cache.client.aclose()
