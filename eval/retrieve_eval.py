@@ -1,9 +1,10 @@
 """Retrieval score on the golden set: Hit@k and MRR (Mean Reciprocal Rank). No LLM, so it costs nothing.
 
 Runs the API's own embedder, retriever and reranker, so it measures exactly what
-the app does. Reports two things:
+the app does: the rerank candidates (with the recital cap), then the reranker.
+Reports two things:
 
-    vector search only:   Hit@6/10/20/50 and MRR@6 of the top 50
+    vector search only:   Hit@6/20/50/100 and MRR@6 of the candidates
     vector + reranker:    Hit@6 and MRR@6 of the 6 chunks the app sends to the model
 
 A retrieved chunk counts as correct when it comes from a gold act and contains a
@@ -37,7 +38,7 @@ from app.rag.retriever import retrieve
 GOLDEN = ROOT / "eval" / "golden.jsonl"
 GOLD_TEXTS = ROOT / "eval" / "gold_texts.json"
 K = settings.retrieve_k  # passages the app sends to the model
-DEPTHS = (6, 10, 20, 50)
+DEPTHS = (6, 20, 50, 100)  # up to settings.rerank_candidates
 GOLD_SPAN = 120  # letters/digits in a row shared with the gold text
 
 
@@ -113,10 +114,9 @@ async def main() -> None:
         for question in tqdm(golden, desc="questions"):
             spans = gold_spans(question["texts"])
             vector = await embed_query(embedder, question["question"])
-            found = await retrieve(vector, max(DEPTHS))
-            vector_ranks.append(first_rank(found, question, spans))
-            # The app's path: rerank the top candidates, keep the best K.
-            candidates = found[: settings.rerank_candidates]
+            # The app's path: fetch the candidates, rerank, keep the best K.
+            candidates = await retrieve(vector, settings.rerank_candidates, settings.max_recitals)
+            vector_ranks.append(first_rank(candidates, question, spans))
             final = await rerank(reranker, question["question"], candidates, K)
             reranked_ranks.append(first_rank(final, question, spans))
 
@@ -127,6 +127,7 @@ async def main() -> None:
         cursor = await conn.execute("SELECT doc_id FROM documents WHERE doc_id = ANY(%s)", (gold_docs,))
         stored = {row["doc_id"] for row in await cursor.fetchall()}
     await pool.close()
+    await reranker.aclose()
     reachable = [any(doc in stored for doc in q["doc_ids"]) for q in golden]
 
     print(f"\nall {len(golden)} answerable questions:")

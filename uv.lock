@@ -3821,6 +3821,7 @@ version = "0.1.0"
 source = { virtual = "api" }
 dependencies = [
     { name = "fastapi" },
+    { name = "httpx" },
     { name = "langchain-google-genai" },
     { name = "langsmith" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },
@@ -3845,6 +3846,7 @@ eval = [
 [package.metadata]
 requires-dist = [
     { name = "fastapi", specifier = ">=0.141.1" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "langchain-google-genai", specifier = ">=4.4.0" },
     { name = "langsmith", specifier = ">=0.12.5" },
     { name = "numpy", specifier = ">=2.4.6" },

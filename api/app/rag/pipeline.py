@@ -7,7 +7,8 @@ from dataclasses import dataclass, field
 
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langsmith import get_current_run_tree, traceable
-from sentence_transformers import CrossEncoder, SentenceTransformer
+import httpx
+from sentence_transformers import SentenceTransformer
 
 from ..core.config import settings
 from ..core.timing import Stopwatch
@@ -37,7 +38,7 @@ class RagPipeline:
         self,
         cache: Cache,
         embedder: SentenceTransformer,
-        reranker: CrossEncoder,
+        reranker: httpx.AsyncClient,
         llm: ChatGoogleGenerativeAI,
     ):
         self.cache = cache
@@ -72,7 +73,7 @@ class RagPipeline:
         with run.clock("embedding"):
             vector = await embed_query(self.embedder, query)
         with run.clock("retrieval"):
-            candidates = await retrieve(vector, settings.rerank_candidates)
+            candidates = await retrieve(vector, settings.rerank_candidates, settings.max_recitals)
         with run.clock("rerank"):
             chunks = await rerank(self.reranker, query, candidates, settings.retrieve_k)
         with run.clock("generation"):

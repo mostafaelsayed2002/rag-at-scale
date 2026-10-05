@@ -84,7 +84,7 @@ async def answer() -> None:
             print(q["id"], q["question"])
             vector = await embed_query(embedder, q["question"])
             # Same steps as the app: fetch the candidates, keep the best k.
-            candidates = await retrieve(vector, settings.rerank_candidates)
+            candidates = await retrieve(vector, settings.rerank_candidates, settings.max_recitals)
             chunks = await rerank(reranker, q["question"], candidates, settings.retrieve_k)
             result = await answer_question(llm, q["question"], chunks)
             # Saved with RAGAS's field names, so the score step can pass the
@@ -102,6 +102,7 @@ async def answer() -> None:
             )
 
     await pool.close()
+    await reranker.aclose()
 
 
 class BgeEmbeddings(Embeddings):

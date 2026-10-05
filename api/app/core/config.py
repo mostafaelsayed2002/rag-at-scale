@@ -46,18 +46,22 @@ class Settings(BaseSettings):
     # --- Retrieval ---
     retrieve_k: int = 6  # passages sent to the model; more adds cost and noise
     # The vector search fetches this many, the reranker keeps the best
-    # retrieve_k. The right chunk was in the top 50 for 65% of the golden
-    # questions but in the top 6 for only 26%.
-    rerank_candidates: int = 20
-    # A cross-encoder: reads question and passage together, so it judges
-    # "does this answer it" rather than "does this sound similar".
-    rerank_model: str = "BAAI/bge-reranker-base"
-    # Question + passage tokens the reranker reads. 512 (the model's maximum)
-    # took 2.4 s per question on 20 candidates.
-    rerank_max_tokens: int = 256
-    # HNSW candidates per search: 99% recall@10 at ~12 ms on 1.06M chunks;
-    # recall plateaus above it (benchmarks_hnsw/).
-    hnsw_ef_search: int = 160
+    # retrieve_k. The right chunk was among the top 100 for 94% of the golden
+    # questions but in the top 6 for only 39%.
+    rerank_candidates: int = 100
+    # Recitals ("this Regulation aims to...") sound like questions and push the
+    # articles with the rules out of the candidates: at most this many.
+    # Hit@6 with Voyage: 0.80 with the cap, 0.77 without.
+    max_recitals: int = 1
+    # Voyage AI's reranker, an API: reads question and passage together, so it
+    # judges "does this answer it" rather than "does this sound similar".
+    # Hit@6 0.80 vs 0.56 for bge-reranker-base on CPU; ~0.7 s per question,
+    # ~$0.002 per question at 100 candidates.
+    rerank_model: str = "rerank-2.5"
+    voyage_api_key: str = Field(min_length=1)
+    # HNSW candidates per search. Must be at least the rows asked for (the
+    # candidates, plus the recitals skipped), or the index returns fewer.
+    hnsw_ef_search: int = 400
 
     # --- Cost estimate (USD per 1M tokens) ---
     # https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-flash-lite

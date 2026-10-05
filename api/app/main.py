@@ -52,6 +52,7 @@ async def lifespan(app: FastAPI):
     yield
     await pool.close()
     await cache.client.aclose()
+    await app.state.pipeline.reranker.aclose()
 
 
 app = FastAPI(title="RAG at Scale", lifespan=lifespan)
