@@ -25,6 +25,14 @@ class Settings(BaseSettings):
     database_url: str
     redis_url: str
     cache_ttl: int = 3600
+    # Semantic cache: a new question this similar to an answered one gets that
+    # answer. Measured on bge-base: real paraphrases score 0.66-0.95 and
+    # different legal questions up to 0.93 ("minimum wage in 2026" vs "in
+    # 2025"), so only near-identical rewordings are safe to reuse.
+    semantic_cache_threshold: float = 0.95
+    # Questions kept for the semantic cache. Every lookup reads them all
+    # (~2 KB each), so it stays small.
+    semantic_cache_size: int = 2000
     data_dir: Path = ROOT / "data"
 
     # --- Embeddings (local) ---
