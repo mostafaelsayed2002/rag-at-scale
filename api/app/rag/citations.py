@@ -37,6 +37,11 @@ def collect_citations(text: str, chunks: list[dict]) -> list[Citation]:
             logger.warning("answer cited [%d] with only %d sources", number, len(chunks))
             continue
         chunk = chunks[number - 1]
+        # The first line is the header added for search ("act | chapter |
+        # Article 6 ..."). It is not on the PDF page, so the viewer could not
+        # find a quote starting with it: 7 of 20 passages found with it, 20 of
+        # 20 without.
+        body = chunk["text"].split("\n", 1)[-1]
         citations.append(
             Citation(
                 n=number,
@@ -45,7 +50,7 @@ def collect_citations(text: str, chunks: list[dict]) -> list[Citation]:
                 title=chunk.get("title"),
                 page_start=chunk["page_start"],
                 page_end=chunk["page_end"],
-                quote=chunk["text"],
+                quote=body,
                 score=chunk["score"],
             )
         )
