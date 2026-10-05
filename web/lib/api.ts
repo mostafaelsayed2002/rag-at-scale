@@ -67,11 +67,34 @@ function toCitation(c: ChatApiResponse["citations"][number]): Citation {
 }
 
 /**
- * POST /chat.
- *
- * The answer arrives whole rather than token by token, so this yields it in
- * one piece. The generator shape is kept because the caller is written around
- * it, and because streaming is the next step rather than a rewrite.
+ * Server-Sent Events from a fetch response: yields each event's name and data.
+ * EventSource would parse them itself, but it can only send GET, and the
+ * question goes in a POST body.
+ */
+async function* readEvents(res: Response): AsyncGenerator<{ event: string; data: string }> {
+  const reader = res.body!.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) return;
+    buffer += value;
+    // An event ends with a blank line; the last piece may still be arriving.
+    const blocks = buffer.split("\n\n");
+    buffer = blocks.pop() ?? "";
+    for (const block of blocks) {
+      let event = "message";
+      let data = "";
+      for (const line of block.split("\n")) {
+        if (line.startsWith("event: ")) event = line.slice(7);
+        else if (line.startsWith("data: ")) data += line.slice(6);
+      }
+      yield { event, data };
+    }
+  }
+}
+
+/**
+ * POST /chat/stream: the answer as it is written, then its citations and costs.
  */
 export async function* streamChat(
   query: string,
@@ -80,7 +103,7 @@ export async function* streamChat(
 ): AsyncGenerator<ChatEvent> {
   const started = performance.now();
 
-  const res = await fetch(`${API_URL}/chat`, {
+  const res = await fetch(`${API_URL}/chat/stream`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ query }),
@@ -88,8 +111,8 @@ export async function* streamChat(
   });
 
   if (!res.ok) {
-    // 429 is the quota running out, which is ordinary here and worth saying
-    // plainly rather than reporting as a failure of the app.
+    // 429 here is the rate limit, which is ordinary and worth saying plainly
+    // rather than reporting as a failure of the app.
     yield {
       type: "error",
       message: await detail(res, "The answer could not be generated. Please try again."),
@@ -97,26 +120,32 @@ export async function* streamChat(
     return;
   }
 
-  const body: ChatApiResponse = await res.json();
-  if (signal?.aborted) return;
-
-  if (body.citations.length) {
-    yield { type: "citations", citations: body.citations.map(toCitation) };
+  for await (const { event, data } of readEvents(res)) {
+    if (signal?.aborted) return;
+    if (event === "token") {
+      yield { type: "token", text: JSON.parse(data).text };
+    } else if (event === "error") {
+      yield { type: "error", message: JSON.parse(data).message };
+    } else if (event === "done") {
+      const body: ChatApiResponse = JSON.parse(data);
+      if (body.citations.length) {
+        yield { type: "citations", citations: body.citations.map(toCitation) };
+      }
+      yield {
+        type: "done",
+        metrics: {
+          // Measured in the browser, so it includes the network, which is what
+          // the person waiting actually experienced.
+          latencyMs: Math.round(performance.now() - started),
+          promptTokens: body.tokens_input,
+          completionTokens: body.tokens_output,
+          cacheHit: body.cached,
+          retrievedChunks: body.retrieved_chunks,
+          model: body.model_used,
+        },
+      };
+    }
   }
-  yield { type: "token", text: body.response };
-  yield {
-    type: "done",
-    metrics: {
-      // Measured in the browser, so it includes the network, which is what
-      // the person waiting actually experienced.
-      latencyMs: Math.round(performance.now() - started),
-      promptTokens: body.tokens_input,
-      completionTokens: body.tokens_output,
-      cacheHit: body.cached,
-      retrievedChunks: body.retrieved_chunks,
-      model: body.model_used,
-    },
-  };
 }
 
 /** GET /analytics */
