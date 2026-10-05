@@ -63,9 +63,11 @@ class Settings(BaseSettings):
     max_recitals: int = 1
     # Voyage AI's reranker, an API: reads question and passage together, so it
     # judges "does this answer it" rather than "does this sound similar".
-    # Hit@6 0.80 vs 0.56 for bge-reranker-base on CPU; ~0.7 s per question,
-    # ~$0.002 per question at 100 candidates.
-    rerank_model: str = "rerank-2.5"
+    # Hit@6 0.80 vs 0.56 for bge-reranker-base on CPU; ~1 s per question.
+    # rerank-3 over rerank-2.5: same Hit@6 (0.80), answer ranked a little lower
+    # (MRR@6 0.62 vs 0.66), but its first 200M tokens are free (~5,000
+    # questions at 100 candidates); after that ~$0.002 per question.
+    rerank_model: str = "rerank-3"
     voyage_api_key: str = Field(min_length=1)
     # HNSW candidates per search. Must be at least the rows asked for (the
     # candidates, plus the recitals skipped), or the index returns fewer.

@@ -22,8 +22,12 @@
   --highlight: 255 236 170;
 }
 
+/* Dark: by the system setting, unless the theme button chose light; or
+   whenever it chose dark. The button sets data-theme on <html>. The values
+   are written twice because a media query cannot share a rule with a
+   plain selector. */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     color-scheme: dark;
     --bg: 22 22 24;
     --panel: 28 28 31;
@@ -40,6 +44,24 @@
     --bad: 240 110 116;
     --highlight: 92 76 28;
   }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: 22 22 24;
+  --panel: 28 28 31;
+  --elevated: 36 36 40;
+  --line: 52 52 58;
+  --fg: 236 236 238;
+  --muted: 160 160 168;
+  --subtle: 116 116 124;
+  --accent: 120 156 255;
+  --accent-soft: 36 44 72;
+  --accent-fg: 16 18 28;
+  --good: 74 196 140;
+  --warn: 230 170 70;
+  --bad: 240 110 116;
+  --highlight: 92 76 28;
 }
 
 html,

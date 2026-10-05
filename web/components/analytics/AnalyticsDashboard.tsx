@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ThemeToggle } from "../ThemeToggle";
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -71,6 +72,7 @@ export function AnalyticsDashboard() {
               </button>
             ))}
           </div>
+          <ThemeToggle />
         </div>
       </header>
 
