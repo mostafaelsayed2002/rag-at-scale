@@ -52,6 +52,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rag}
       # Queries are embedded with the same model the corpus used.
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:?set GOOGLE_API_KEY in .env}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:?set VOYAGE_API_KEY in .env}
       # Again the service name: redis answers to it inside the network.
       REDIS_URL: redis://redis:6379/0
       # Tracing. Off unless the .env turns it on, since it sends every
