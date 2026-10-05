@@ -5,6 +5,8 @@ so the cheapest model is enough. Answering from memory is the worst failure,
 so "the sources do not cover this" is a valid answer.
 """
 
+from collections.abc import AsyncIterator
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langsmith import traceable
 
@@ -53,34 +55,61 @@ def usage(response) -> tuple[int, int]:
     return int(meta.get("input_tokens", 0)), int(meta.get("output_tokens", 0))
 
 
-@traceable(run_type="chain", name="answer_question")
-async def answer_question(llm: ChatGoogleGenerativeAI, query: str, chunks: list[dict]) -> Answer:
-    """Ask the model to answer from the passages, and return a cited Answer.
+def final_answer(outputs: list) -> dict:
+    """What LangSmith keeps of a streamed answer: the finished Answer, not every piece."""
+    answers = [item for item in outputs if isinstance(item, Answer)]
+    return answers[-1].model_dump() if answers else {}
 
+
+@traceable(run_type="chain", name="answer_question", reduce_fn=final_answer)
+async def stream_answer(
+    llm: ChatGoogleGenerativeAI, query: str, chunks: list[dict]
+) -> AsyncIterator[str | Answer]:
+    """Ask the model to answer from the passages. Yields the text in pieces as
+    the model writes it, then the finished, cited Answer.
+
+    Citations are read from the [n] markers, so they come with the finished
+    Answer: only the whole text has all of them.
     Traced in LangSmith with the question, passages, answer and tokens.
     """
     if not chunks:
         # No passages, nothing to ground an answer in: skip the model call.
-        return Answer(
+        yield Answer(
             text="I could not find anything about that in the corpus.",
             citations=[],
             tokens_input=0,
             tokens_output=0,
         )
+        return
 
+    pieces = []
+    whole = None  # the chunks added up: the last ones carry the token counts
     try:
-        response = await llm.ainvoke(build_prompt(query, chunks))
+        async for chunk in llm.astream(build_prompt(query, chunks)):
+            whole = chunk if whole is None else whole + chunk
+            piece = extract_text(chunk.content)
+            if piece:
+                pieces.append(piece)
+                yield piece
     except Exception as exc:
         if is_quota_error(exc):
             raise QuotaExhausted("generation", str(exc)) from exc
         raise
-    text = extract_text(response.content)
-    tokens_input, tokens_output = usage(response)
+    text = "".join(pieces)
+    tokens_input, tokens_output = usage(whole)
 
-    return Answer(
+    yield Answer(
         text=text.strip(),
         citations=collect_citations(text, chunks),
         tokens_input=tokens_input,
         tokens_output=tokens_output,
         retrieved=len(chunks),
     )
+
+
+async def answer_question(llm: ChatGoogleGenerativeAI, query: str, chunks: list[dict]) -> Answer:
+    """The whole cited Answer at once (the non-streaming /chat and the eval)."""
+    async for item in stream_answer(llm, query, chunks):
+        if isinstance(item, Answer):
+            return item
+    raise RuntimeError("the answer stream ended without an answer")

@@ -1,8 +1,10 @@
 """The RAG pipeline: cache → embed → semantic cache → retrieve → rerank → generate.
 
-No HTTP here. The chat route calls answer() and handles the request around it.
+No HTTP here. The chat routes call answer() (all at once) or stream() (the
+text as it is written) and handle the request around them.
 """
 
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -14,7 +16,7 @@ from ..core.config import settings
 from ..core.timing import Stopwatch
 from ..services.cache import Cache
 from .embedder import embed_vector, to_halfvec
-from .generator import answer_question
+from .generator import final_answer, stream_answer
 from .reranker import rerank
 from .retriever import retrieve
 from .types import Answer
@@ -52,13 +54,16 @@ class RagPipeline:
         run_type="chain",
         name="chat",
         process_inputs=lambda inputs: {"query": inputs.get("query")},
+        reduce_fn=final_answer,
         metadata={
             "llm_model": settings.llm_model,
             "retrieve_k": settings.retrieve_k,
             "rerank_model": settings.rerank_model,
         },
     )
-    async def answer(self, query: str, run: ChatRun) -> Answer:
+    async def stream(self, query: str, run: ChatRun) -> AsyncIterator[str | Answer]:
+        """Yields the answer's text in pieces as the model writes it, then the
+        finished Answer. A cached answer comes as the Answer alone."""
         # The models and k belong in the key: change any of them and the stored
         # answer is no longer the one this configuration would produce.
         scope = f"{settings.llm_model}:{settings.rerank_model}:{settings.retrieve_k}"
@@ -81,16 +86,28 @@ class RagPipeline:
             )
 
         if stored is not None:
-            return Answer.model_validate_json(stored)
+            yield Answer.model_validate_json(stored)
+            return
 
         with run.clock("retrieval"):
             candidates = await retrieve(to_halfvec(vector), settings.rerank_candidates, settings.max_recitals)
         with run.clock("rerank"):
             chunks = await rerank(self.reranker, query, candidates, settings.retrieve_k)
         with run.clock("generation"):
-            answer = await answer_question(self.llm, query, chunks)
+            async for item in stream_answer(self.llm, query, chunks):
+                if isinstance(item, Answer):
+                    answer = item
+                else:
+                    yield item
 
         await self.cache.set(fingerprint, answer.model_dump_json())
         await self.cache.remember(scope, fingerprint, vector)
         run.tokens_input, run.tokens_output = answer.tokens_input, answer.tokens_output
-        return answer
+        yield answer
+
+    async def answer(self, query: str, run: ChatRun) -> Answer:
+        """The whole Answer at once."""
+        async for item in self.stream(query, run):
+            if isinstance(item, Answer):
+                return item
+        raise RuntimeError("the answer stream ended without an answer")

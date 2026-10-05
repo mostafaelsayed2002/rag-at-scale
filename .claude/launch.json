@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "web", "run", "dev", "--", "-p", "3000"],
       "port": 3000
+    },
+    {
+      "name": "api",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": ["run", "--project", "api", "uvicorn", "app.main:app", "--app-dir", "api", "--port", "8000"],
+      "port": 8000
     }
   ]
 }
