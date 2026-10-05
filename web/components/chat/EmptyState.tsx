@@ -22,7 +22,7 @@ export function EmptyState({ onPick }: { onPick: (question: string) => void }) {
         Ask anything about EU law
       </h1>
       <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-muted">
-        Answers are grounded in all 43,106 EU acts currently in force, from the GDPR and the AI Act to
+        Answers are grounded in 40,183 EU acts currently in force, from the GDPR and the AI Act to
         air passenger rights. Every claim links to the passage it came from, opened in the original PDF
         at the right page.
       </p>
