@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     max_tokens: int = 512
     embed_batch: int = 32
 
+    # The stages' folder under corpus_dir. A second one (WORK_NAME=work_v2)
+    # holds a new chunking next to the current one until it proves better.
+    work_name: str = "work"
+
     # Only the load stage needs it, so chunking and counting work without a database.
     database_url: str | None = None
 
@@ -58,7 +62,7 @@ class Settings(BaseSettings):
     @property
     def work_dir(self) -> Path:
         """Where the stages hand over to each other: chunks, then vectors."""
-        return self.corpus_dir / "work"
+        return self.corpus_dir / self.work_name
 
 
 @lru_cache(maxsize=1)
