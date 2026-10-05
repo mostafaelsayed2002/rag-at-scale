@@ -5,6 +5,8 @@ description = "RAG at scale: retrieval and answer generation API"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi>=0.141.1",
+    # Calls the Voyage AI reranker.
+    "httpx>=0.28",
     # Gemini writes the answers.
     "langchain-google-genai>=4.4.0",
     "langsmith>=0.12.5",

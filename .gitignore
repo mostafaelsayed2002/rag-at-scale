@@ -27,3 +27,6 @@ test.py
 
 *.npy
 Screenshot 2026-09-29 at 7.59.25 PM.png
+# Large eval test data (regenerate with model_compare.py / chunk_compare.py)
+eval/results/chunking/
+eval/results/piles.json

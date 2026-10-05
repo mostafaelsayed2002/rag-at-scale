@@ -46,6 +46,7 @@ from app.core.config import settings
 from app.db.pool import pool
 from app.rag.embedder import build_embedder, embed_query
 from app.rag.generator import answer_question, build_llm
+from app.rag.reranker import build_reranker, rerank
 from app.rag.retriever import retrieve
 
 GOLDEN = ROOT / "eval" / "golden.jsonl"
@@ -75,13 +76,16 @@ async def answer() -> None:
 
     await pool.open()
     embedder = build_embedder()
+    reranker = build_reranker()
     llm = build_llm()
 
     with tracing_context(enabled=False):  # keep eval runs out of LangSmith
         for q in questions:
             print(q["id"], q["question"])
             vector = await embed_query(embedder, q["question"])
-            chunks = await retrieve(vector, settings.retrieve_k)
+            # Same steps as the app: fetch the candidates, keep the best k.
+            candidates = await retrieve(vector, settings.rerank_candidates, settings.max_recitals)
+            chunks = await rerank(reranker, q["question"], candidates, settings.retrieve_k)
             result = await answer_question(llm, q["question"], chunks)
             # Saved with RAGAS's field names, so the score step can pass the
             # lines straight to RAGAS (it ignores "id" and "answerable").
@@ -98,6 +102,7 @@ async def answer() -> None:
             )
 
     await pool.close()
+    await reranker.aclose()
 
 
 class BgeEmbeddings(Embeddings):

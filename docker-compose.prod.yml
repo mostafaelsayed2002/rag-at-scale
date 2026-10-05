@@ -30,7 +30,7 @@ services:
 
   postgres:
     image: pgvector/pgvector:pg16
-    # The 1.9 GB HNSW index has to stay in memory for fast search: 128 MB (the
+    # The 1.6 GB HNSW index has to stay in memory for fast search: 128 MB (the
     # default) would read it from disk on every query. pg_prewarm reloads the
     # cached pages after a restart.
     command: ["postgres", "-c", "shared_buffers=2560MB", "-c", "shared_preload_libraries=pg_prewarm"]
@@ -79,6 +79,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-rag}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-rag}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY:?set GOOGLE_API_KEY}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:?set VOYAGE_API_KEY}
       REDIS_URL: redis://redis:6379/0
       LANGSMITH_TRACING: ${LANGSMITH_TRACING:-false}
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY:-}
