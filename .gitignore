@@ -41,3 +41,9 @@ docs/showcase/*
 live_bench.py 
 live_bench.jsonl
 
+!docs/showcase/langsmith-trace.png
+
+
+rag-at-scale.pdf
+langsmith-trace.png
+screenshot.png
