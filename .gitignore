@@ -30,3 +30,20 @@ Screenshot 2026-09-29 at 7.59.25 PM.png
 # Large eval test data (regenerate with model_compare.py / chunk_compare.py)
 eval/results/chunking/
 eval/results/piles.json
+
+# Showcase PDF: its sources and build files stay local. Only the PDF and the
+# README screenshot are published.
+docs/showcase/*
+!docs/showcase/rag-at-scale.pdf
+!docs/showcase/screenshot.png
+
+
+live_bench.py 
+live_bench.jsonl
+
+!docs/showcase/langsmith-trace.png
+
+
+rag-at-scale.pdf
+langsmith-trace.png
+screenshot.png

@@ -163,9 +163,12 @@ body {
   }
 }
 
-/* Highlight drawn over the cited passage in the PDF text layer. */
+/* Highlight drawn over the cited passage in the PDF text layer. It sits on
+   top of the page's text, so it is see-through like a highlighter pen (at
+   0.85 the words underneath washed out). Always yellow: the PDF page stays
+   white in the dark theme too. */
 .cite-mark {
-  background: rgb(var(--highlight) / 0.85);
+  background: rgb(255 210 50 / 0.45);
   color: transparent;
   border-radius: 2px;
 }
