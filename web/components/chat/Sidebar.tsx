@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { BarChart3, Check, MessageSquare, PanelLeft, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { BarChart3, Check, ChevronRight, MessageSquare, PanelLeft, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { BUCKET_ORDER, dateBucket } from "@/lib/format";
 import type { Conversation } from "@/lib/types";
 import { IconButton } from "../ui";
@@ -100,10 +100,19 @@ export function Sidebar({ conversations, hydrated, activeId, onSelect, onNew, on
       <div className="border-t border-line p-2">
         <Link
           href="/analytics"
-          className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm text-muted transition-colors hover:bg-fg/[0.05] hover:text-fg"
+          className="group flex items-center gap-3 rounded-xl border border-line bg-elevated px-3 py-2.5 shadow-sm transition-colors hover:border-accent/40 hover:bg-accent-soft"
         >
-          <BarChart3 size={16} />
-          System analytics
+          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent">
+            <BarChart3 size={16} aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              Live system analytics
+              <span className="h-1.5 w-1.5 rounded-full bg-good" aria-hidden />
+            </span>
+            <span className="block truncate text-xs text-muted">Latency, cache hits, cost</span>
+          </span>
+          <ChevronRight size={15} className="text-subtle transition-transform group-hover:translate-x-0.5" aria-hidden />
         </Link>
       </div>
     </nav>

@@ -182,10 +182,15 @@ export function ChatApp() {
           <Link
             href="/analytics"
             aria-label="System analytics"
-            title="System analytics"
-            className="grid h-9 w-9 place-items-center rounded-lg text-muted transition-colors hover:bg-fg/[0.06] hover:text-fg"
+            title="Live system analytics: latency, cache hits, cost"
+            className="mx-1 flex h-9 items-center gap-2 rounded-full border border-accent/25 bg-accent-soft px-2.5 text-sm font-medium text-accent transition-colors hover:border-accent/50 hover:bg-accent/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:px-3"
           >
-            <BarChart3 size={18} />
+            <span className="relative flex h-2 w-2" aria-hidden>
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-good opacity-60" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-good" />
+            </span>
+            <BarChart3 size={16} aria-hidden />
+            <span className="hidden sm:inline">Analytics</span>
           </Link>
           <IconButton
             label={rightOpen ? "Hide documents" : "Show documents"}
