@@ -7,6 +7,7 @@ Ask anything about EU law. The answer is grounded in the official texts, every c
 and a citation opens the official PDF with the passage highlighted.
 
 [![Live demo](https://img.shields.io/badge/live_demo-rag.elsayed2002.tech-5b8cff?style=for-the-badge)](https://rag.elsayed2002.tech)
+[![Demo video](https://img.shields.io/badge/demo_video-YouTube-ff3d3d?style=for-the-badge&logo=youtube&logoColor=white)](https://youtu.be/ERD1HDcio6E)
 [![Overview PDF](https://img.shields.io/badge/overview-PDF-45d19a?style=for-the-badge)](docs/showcase/rag-at-scale.pdf)
 
 [![CI](https://github.com/mostafaelsayed2002/rag-at-scale/actions/workflows/ci.yml/badge.svg)](https://github.com/mostafaelsayed2002/rag-at-scale/actions/workflows/ci.yml)
@@ -60,6 +61,10 @@ and a citation opens the official PDF with the passage highlighted.
 ---
 
 ## The app
+
+[![Watch the 48-second demo on YouTube](https://img.youtube.com/vi/ERD1HDcio6E/maxresdefault.jpg)](https://youtu.be/ERD1HDcio6E)
+
+<p align="center"><b>▶ <a href="https://youtu.be/ERD1HDcio6E">Watch the 48-second demo</a></b></p>
 
 ### Answers backed by the actual law.
 
