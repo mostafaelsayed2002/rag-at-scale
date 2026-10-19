@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BarChart3, Library, PanelLeft, SquarePen } from "lucide-react";
+import { BarChart3, Info, Library, PanelLeft, SquarePen } from "lucide-react";
 import { streamChat } from "@/lib/api";
 import { useConversations } from "@/lib/conversations";
 import { newId } from "@/lib/format";
 import { useMediaQuery } from "@/lib/use-media-query";
 import type { Citation, Message } from "@/lib/types";
 import { ThemeToggle } from "../ThemeToggle";
+import { ProjectTour, useProjectTour } from "../tour/ProjectTour";
 import { IconButton } from "../ui";
 import { DocumentsPanel, type DocumentTarget } from "../documents/DocumentsPanel";
 import { Composer } from "./Composer";
@@ -21,6 +22,7 @@ type Draft = { conversationId: string; message: Message };
 
 export function ChatApp() {
   const { conversations, hydrated, create, update, rename, remove } = useConversations();
+  const tour = useProjectTour();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -178,6 +180,16 @@ export function ChatApp() {
           <h1 className="min-w-0 flex-1 truncate px-2 text-sm font-medium text-fg/90">
             {active?.title ?? "New chat"}
           </h1>
+          <button
+            type="button"
+            onClick={tour.show}
+            aria-label="About this project"
+            title="How this project was built"
+            className="flex h-9 items-center gap-2 rounded-full border border-line bg-elevated px-2.5 text-sm font-medium text-fg/80 shadow-sm transition-colors hover:border-accent/40 hover:bg-accent-soft hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:px-3"
+          >
+            <Info size={16} aria-hidden />
+            <span className="hidden sm:inline">About</span>
+          </button>
           <ThemeToggle />
           <Link
             href="/analytics"
@@ -250,6 +262,8 @@ export function ChatApp() {
           <DocumentsPanel target={docTarget} onClose={() => setRightOpen(false)} />
         </div>
       )}
+
+      <ProjectTour open={tour.open} onClose={tour.close} />
     </div>
   );
 }
