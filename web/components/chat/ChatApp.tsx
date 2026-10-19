@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BarChart3, Library, PanelLeft, SquarePen } from "lucide-react";
+import { BarChart3, Info, Library, PanelLeft, SquarePen } from "lucide-react";
 import { streamChat } from "@/lib/api";
 import { useConversations } from "@/lib/conversations";
 import { newId } from "@/lib/format";
 import { useMediaQuery } from "@/lib/use-media-query";
 import type { Citation, Message } from "@/lib/types";
 import { ThemeToggle } from "../ThemeToggle";
+import { ProjectTour, useProjectTour } from "../tour/ProjectTour";
 import { IconButton } from "../ui";
 import { DocumentsPanel, type DocumentTarget } from "../documents/DocumentsPanel";
 import { Composer } from "./Composer";
@@ -21,6 +22,7 @@ type Draft = { conversationId: string; message: Message };
 
 export function ChatApp() {
   const { conversations, hydrated, create, update, rename, remove } = useConversations();
+  const tour = useProjectTour();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -179,6 +181,16 @@ export function ChatApp() {
             {active?.title ?? "New chat"}
           </h1>
           <ThemeToggle />
+          <button
+            type="button"
+            onClick={tour.show}
+            aria-label="About this project"
+            title="How this project was built"
+            className="flex h-9 items-center gap-2 rounded-full border border-line bg-elevated px-2.5 text-sm font-medium text-fg/80 shadow-sm transition-colors hover:border-accent/40 hover:bg-accent-soft hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:px-3"
+          >
+            <Info size={16} aria-hidden />
+            <span className="hidden sm:inline">About</span>
+          </button>
           <Link
             href="/analytics"
             aria-label="System analytics"
@@ -192,13 +204,21 @@ export function ChatApp() {
             <BarChart3 size={16} aria-hidden />
             <span className="hidden sm:inline">Analytics</span>
           </Link>
-          <IconButton
-            label={rightOpen ? "Hide documents" : "Show documents"}
-            active={rightOpen}
+          <button
+            type="button"
             onClick={() => setRightOpen((o) => !o)}
+            aria-label={rightOpen ? "Hide documents" : "Show documents"}
+            aria-pressed={rightOpen}
+            title="The official documents behind the answers"
+            className={`flex h-9 items-center gap-2 rounded-full border px-2.5 text-sm font-medium shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:px-3 ${
+              rightOpen
+                ? "border-accent/40 bg-accent-soft text-accent"
+                : "border-line bg-elevated text-fg/80 hover:border-accent/40 hover:bg-accent-soft hover:text-accent"
+            }`}
           >
-            <Library size={18} />
-          </IconButton>
+            <Library size={16} aria-hidden />
+            <span className="hidden sm:inline">Documents</span>
+          </button>
         </header>
 
         <div
@@ -250,6 +270,8 @@ export function ChatApp() {
           <DocumentsPanel target={docTarget} onClose={() => setRightOpen(false)} />
         </div>
       )}
+
+      <ProjectTour open={tour.open} onClose={tour.close} />
     </div>
   );
 }
