@@ -2,63 +2,32 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
+import { PAGE_H, PAGE_W } from "@/lib/tour";
 import { SLIDES } from "./slides";
 import "./tour.css";
 
-// The pages are designed at a fixed size (the PDF's), then scaled to fit the screen.
-const PAGE_W = 1080;
-const PAGE_H = 1350;
-const SEEN_KEY = "rag:tour-seen";
-
-/** Open on a visitor's first visit; `show` reopens it later. */
+/** Open as soon as the app opens, on every visit; `show` reopens it later. */
 export function useProjectTour() {
-  const [open, setOpen] = useState(false);
-
-  useEffect(() => {
-    try {
-      if (!localStorage.getItem(SEEN_KEY)) setOpen(true);
-    } catch {
-      // Storage blocked: skip the automatic tour rather than show it on every visit.
-    }
-  }, []);
-
-  const close = useCallback(() => {
-    setOpen(false);
-    try {
-      localStorage.setItem(SEEN_KEY, "1");
-    } catch {}
-  }, []);
-
-  return { open, show: useCallback(() => setOpen(true), []), close };
+  const [open, setOpen] = useState(true);
+  return { open, show: useCallback(() => setOpen(true), []), close: useCallback(() => setOpen(false), []) };
 }
 
 export function ProjectTour({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [index, setIndex] = useState(0);
-  const [scale, setScale] = useState(0.5);
   const closeRef = useRef<HTMLButtonElement>(null);
   const touchX = useRef<number | null>(null);
   const last = SLIDES.length - 1;
 
   const go = useCallback((i: number) => setIndex(Math.max(0, Math.min(last, i))), [last]);
 
-  // Fit the page into the window, leaving room for the controls.
+  // Focus the close button, so the keyboard works at once.
   useEffect(() => {
-    if (!open) return;
-    const fit = () => {
-      const narrow = window.innerWidth < 640;
-      const w = window.innerWidth - (narrow ? 24 : 96);
-      const h = window.innerHeight - (narrow ? 32 : 48);
-      setScale(Math.min(w / PAGE_W, h / PAGE_H));
-    };
-    fit();
-    window.addEventListener("resize", fit);
-    return () => window.removeEventListener("resize", fit);
+    if (open) closeRef.current?.focus();
   }, [open]);
 
   useEffect(() => {
     if (!open) return;
     setIndex(0);
-    closeRef.current?.focus();
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
       else if (e.key === "ArrowRight") setIndex((i) => Math.min(last, i + 1));
@@ -87,7 +56,7 @@ export function ProjectTour({ open, onClose }: { open: boolean; onClose: () => v
     >
       <div
         className="relative overflow-hidden rounded-2xl border border-line bg-bg shadow-2xl"
-        style={{ width: PAGE_W * scale, height: PAGE_H * scale }}
+        style={{ width: `calc(${PAGE_W}px * var(--tour-scale))`, height: `calc(${PAGE_H}px * var(--tour-scale))` }}
         onClick={(e) => {
           // "Try it live" links point at this site: just close the tour.
           if ((e.target as HTMLElement).closest("[data-tour-close]")) {
@@ -99,7 +68,7 @@ export function ProjectTour({ open, onClose }: { open: boolean; onClose: () => v
         <div
           key={index}
           className="tour-slide origin-top-left"
-          style={{ width: PAGE_W, height: PAGE_H, transform: `scale(${scale})` }}
+          style={{ width: PAGE_W, height: PAGE_H, transform: "scale(var(--tour-scale))" }}
           dangerouslySetInnerHTML={{ __html: `<section class="page">${SLIDES[index]}</section>` }}
         />
 

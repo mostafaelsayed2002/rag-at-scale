@@ -180,6 +180,7 @@ export function ChatApp() {
           <h1 className="min-w-0 flex-1 truncate px-2 text-sm font-medium text-fg/90">
             {active?.title ?? "New chat"}
           </h1>
+          <ThemeToggle />
           <button
             type="button"
             onClick={tour.show}
@@ -190,7 +191,6 @@ export function ChatApp() {
             <Info size={16} aria-hidden />
             <span className="hidden sm:inline">About</span>
           </button>
-          <ThemeToggle />
           <Link
             href="/analytics"
             aria-label="System analytics"
@@ -204,13 +204,21 @@ export function ChatApp() {
             <BarChart3 size={16} aria-hidden />
             <span className="hidden sm:inline">Analytics</span>
           </Link>
-          <IconButton
-            label={rightOpen ? "Hide documents" : "Show documents"}
-            active={rightOpen}
+          <button
+            type="button"
             onClick={() => setRightOpen((o) => !o)}
+            aria-label={rightOpen ? "Hide documents" : "Show documents"}
+            aria-pressed={rightOpen}
+            title="The official documents behind the answers"
+            className={`flex h-9 items-center gap-2 rounded-full border px-2.5 text-sm font-medium shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 sm:px-3 ${
+              rightOpen
+                ? "border-accent/40 bg-accent-soft text-accent"
+                : "border-line bg-elevated text-fg/80 hover:border-accent/40 hover:bg-accent-soft hover:text-accent"
+            }`}
           >
-            <Library size={18} />
-          </IconButton>
+            <Library size={16} aria-hidden />
+            <span className="hidden sm:inline">Documents</span>
+          </button>
         </header>
 
         <div
